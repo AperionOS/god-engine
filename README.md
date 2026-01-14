@@ -123,17 +123,23 @@ Wires engine and UI together with game loop.
 
 ## 🧪 Testing
 
-Tests verify determinism of all core systems:
+God Engine has comprehensive test coverage ensuring determinism:
 
 ```bash
 pnpm test
 ```
 
-- RNG produces identical sequences for same seed
-- Height maps generate consistently
-- Biome classification is deterministic
-- Vegetation growth is reproducible
-- Agent behavior is predictable
+**Test Suite**:
+- ✅ 53 tests across 7 test files
+- ✅ RNG produces identical sequences for same seed
+- ✅ Height maps generate consistently
+- ✅ Biome classification is deterministic
+- ✅ Vegetation growth is reproducible
+- ✅ Agent behavior is predictable
+- ✅ **Phase 2**: Golden seed regression tests
+- ✅ **Phase 2**: Determinism guardrails (Math.random detection, etc.)
+
+**Phase 2 Determinism Contract**: See [PHASE2.md](PHASE2.md) for details on the enforced determinism guarantees and testing infrastructure.
 
 ## 🗺️ Roadmap
 

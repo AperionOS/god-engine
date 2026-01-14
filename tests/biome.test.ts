@@ -3,7 +3,7 @@ import { generateHeightMap } from '../src/engine/height';
 import { calculateMoisture } from '../src/engine/moisture';
 import { calculateFlow } from '../src/engine/flow';
 import { generateBiomeMap, BiomeType } from '../src/engine/biome';
-import { checksumBiomeMap } from '../src/engine/checksum';
+import { checksumBiomeMapLegacy } from '../src/engine/checksum';
 
 describe('BiomeMap', () => {
   it('should generate deterministic biome map for same seed', () => {
@@ -17,7 +17,7 @@ describe('BiomeMap', () => {
     const moistureMap2 = calculateMoisture(heightMap2, flowMap2);
     const biomeMap2 = generateBiomeMap(heightMap2, moistureMap2);
 
-    expect(checksumBiomeMap(biomeMap1)).toBe(checksumBiomeMap(biomeMap2));
+    expect(checksumBiomeMapLegacy(biomeMap1)).toBe(checksumBiomeMapLegacy(biomeMap2));
   });
 
   it('should contain all valid biome types', () => {
@@ -50,7 +50,7 @@ describe('BiomeMap', () => {
     const moistureMap = calculateMoisture(heightMap, flowMap);
     const biomeMap = generateBiomeMap(heightMap, moistureMap);
 
-    const checksum = checksumBiomeMap(biomeMap);
+    const checksum = checksumBiomeMapLegacy(biomeMap);
     expect(checksum).toBeTruthy();
   });
 });

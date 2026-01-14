@@ -4,11 +4,35 @@ import { calculateMoisture, MoistureMap } from './moisture';
 import { generateBiomeMap, BiomeMap } from './biome';
 import { initializeVegetation, updateVegetation, VegetationMap } from './vegetation';
 import { Agent, AgentConfig } from './agent';
+import {
+  checksumHeightMap,
+  checksumFlowMap,
+  checksumMoistureMap,
+  checksumBiomeMap,
+  checksumVegetation,
+  checksumAgents,
+} from './checksum';
 
 export interface WorldConfig {
   width?: number;
   height?: number;
   seed: number;
+}
+
+/**
+ * Composite checksum of entire world state
+ * Used for determinism verification and regression testing
+ */
+export interface WorldChecksum {
+  tick: number;
+  seed: number;
+  height: string;
+  flow: string;
+  moisture: string;
+  biome: string;
+  vegetation: string;
+  agents: string;
+  composite: string;
 }
 
 export class World {
@@ -68,5 +92,49 @@ export class World {
   regenerate(seed: number): void {
     (this as { seed: number }).seed = seed;
     this.generate();
+  }
+
+  /**
+   * Generate a complete checksum of the world state
+   * This captures all mutable state and can be used to verify determinism
+   */
+  getChecksum(): WorldChecksum {
+    const heightHash = checksumHeightMap(this.heightMap);
+    const flowHash = checksumFlowMap(this.flowMap);
+    const moistureHash = checksumMoistureMap(this.moistureMap);
+    const biomeHash = checksumBiomeMap(this.biomeMap);
+    const vegetationHash = checksumVegetation(this.vegetationMap);
+    const agentsHash = checksumAgents(this.agents);
+
+    // Composite hash combines all layer hashes
+    const composite = [
+      `tick:${this.tickCount}`,
+      `seed:${this.seed}`,
+      heightHash,
+      flowHash,
+      moistureHash,
+      biomeHash,
+      vegetationHash,
+      agentsHash,
+    ].join('|');
+
+    // Simple hash of the composite
+    let hash = 0;
+    for (let i = 0; i < composite.length; i++) {
+      hash = ((hash << 5) - hash) + composite.charCodeAt(i);
+      hash = hash & hash;
+    }
+
+    return {
+      tick: this.tickCount,
+      seed: this.seed,
+      height: heightHash,
+      flow: flowHash,
+      moisture: moistureHash,
+      biome: biomeHash,
+      vegetation: vegetationHash,
+      agents: agentsHash,
+      composite: (hash >>> 0).toString(36),
+    };
   }
 }

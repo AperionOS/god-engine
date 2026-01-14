@@ -4,7 +4,7 @@ import { calculateFlow } from '../src/engine/flow';
 import { calculateMoisture } from '../src/engine/moisture';
 import { generateBiomeMap } from '../src/engine/biome';
 import { initializeVegetation, updateVegetation } from '../src/engine/vegetation';
-import { checksumVegetation } from '../src/engine/checksum';
+import { checksumVegetationLegacy } from '../src/engine/checksum';
 
 describe('VegetationMap', () => {
   it('should initialize deterministically', () => {
@@ -20,7 +20,7 @@ describe('VegetationMap', () => {
     const biomeMap2 = generateBiomeMap(heightMap2, moistureMap2);
     const vegetation2 = initializeVegetation(biomeMap2);
 
-    expect(checksumVegetation(vegetation1)).toBe(checksumVegetation(vegetation2));
+    expect(checksumVegetationLegacy(vegetation1)).toBe(checksumVegetationLegacy(vegetation2));
   });
 
   it('should have values in [0, 1]', () => {
@@ -53,7 +53,7 @@ describe('VegetationMap', () => {
     updateVegetation(vegetation1, biomeMap, moistureMap);
     updateVegetation(vegetation2, biomeMap, moistureMap);
 
-    expect(checksumVegetation(vegetation1)).toBe(checksumVegetation(vegetation2));
+    expect(checksumVegetationLegacy(vegetation1)).toBe(checksumVegetationLegacy(vegetation2));
   });
 
   it('should consume vegetation correctly', () => {
