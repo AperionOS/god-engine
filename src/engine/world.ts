@@ -66,8 +66,7 @@ export class World {
   }
 
   regenerate(seed: number): void {
-    this.seed = seed;
-    (this as any).seed = seed;
+    (this as { seed: number }).seed = seed;
     this.generate();
   }
 }

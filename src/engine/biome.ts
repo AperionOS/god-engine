@@ -54,7 +54,8 @@ export class BiomeMap {
       [BiomeType.SNOW]: 0,
     };
     for (let i = 0; i < this.data.length; i++) {
-      counts[this.data[i]]++;
+      const biomeType = this.data[i] as BiomeType;
+      counts[biomeType]++;
     }
     return counts;
   }
