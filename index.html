@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>God Engine - Procedural World Simulation</title>
+  </head>
+  <body>
+    <div id="app">
+      <h1>God Engine</h1>
+      <div id="stats">Tick: 0 | Seed: 12345</div>
+      
+      <canvas id="game-canvas"></canvas>
+      
+      <div class="controls">
+        <div class="control-group">
+          <label for="seed-input">Seed:</label>
+          <input type="number" id="seed-input" value="12345" />
+          <button id="regenerate-btn">Regenerate</button>
+        </div>
+        
+        <div class="control-group">
+          <button id="play-pause-btn">Play</button>
+          <button id="step-btn">Step</button>
+        </div>
+        
+        <div class="control-group">
+          <label for="speed-slider">Speed: <span id="speed-label">1.0</span>x</label>
+          <input type="range" id="speed-slider" min="0.1" max="5" step="0.1" value="1" />
+        </div>
+        
+        <div class="control-group">
+          <label>
+            <input type="checkbox" id="rivers-toggle" checked />
+            Rivers
+          </label>
+          <label>
+            <input type="checkbox" id="vegetation-toggle" checked />
+            Vegetation
+          </label>
+        </div>
+      </div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
