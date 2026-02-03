@@ -257,32 +257,43 @@ export function Sidebar({
               </CardHeader>
               <CardContent className="p-2">
                 <div className="h-24">
-                  {history.length >= 2 ? (
-                    <ResponsiveLine
-                      data={[{
-                        id: 'population',
-                        data: history.map(h => ({ x: h.tick, y: h.population }))
-                      }]}
-                      colors={['#3b82f6']}
-                      enablePoints={false}
-                      enableGridX={false}
-                      enableGridY={false}
-                      axisBottom={null}
-                      axisLeft={null}
-                      axisTop={null}
-                      axisRight={null}
-                      enableArea={true}
-                      areaOpacity={0.2}
-                      curve="monotoneX"
-                      animate={false}
-                      isInteractive={false}
-                      margin={{ top: 4, right: 4, bottom: 4, left: 4 }}
-                    />
-                  ) : (
-                    <div className="h-full flex items-center justify-center text-gray-500 text-xs">
-                      Collecting data...
-                    </div>
-                  )}
+                  {(() => {
+                    // Filter out invalid data points to prevent Nivo SVG path errors
+                    const validData = history
+                      .filter(h => h != null && typeof h.tick === 'number' && typeof h.population === 'number' && isFinite(h.tick) && isFinite(h.population))
+                      .map(h => ({ x: h.tick, y: h.population }));
+                    
+                    if (validData.length < 2) {
+                      return (
+                        <div className="h-full flex items-center justify-center text-gray-500 text-xs">
+                          Collecting data...
+                        </div>
+                      );
+                    }
+                    
+                    return (
+                      <ResponsiveLine
+                        data={[{
+                          id: 'population',
+                          data: validData
+                        }]}
+                        colors={['#3b82f6']}
+                        enablePoints={false}
+                        enableGridX={false}
+                        enableGridY={false}
+                        axisBottom={null}
+                        axisLeft={null}
+                        axisTop={null}
+                        axisRight={null}
+                        enableArea={true}
+                        areaOpacity={0.2}
+                        curve="monotoneX"
+                        animate={false}
+                        isInteractive={false}
+                        margin={{ top: 4, right: 4, bottom: 4, left: 4 }}
+                      />
+                    );
+                  })()}
                 </div>
               </CardContent>
             </Card>

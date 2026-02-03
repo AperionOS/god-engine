@@ -455,12 +455,18 @@ export default function App() {
           
           // Update Graph every 60 ticks (approx 1 sec)
           if (world.tickCount % 60 === 0) {
-            setHistory(prev => {
-              const next = [...prev, { tick: world.tickCount, population: world.agents.length }];
-              // Keep last 50 points
-              if (next.length > 50) return next.slice(next.length - 50);
-              return next;
-            });
+            const currentTick = world.tickCount;
+            const currentPop = world.agents?.length ?? 0;
+            
+            // Only add valid data points
+            if (typeof currentTick === 'number' && isFinite(currentTick)) {
+              setHistory(prev => {
+                const next = [...prev, { tick: currentTick, population: currentPop }];
+                // Keep last 50 points
+                if (next.length > 50) return next.slice(next.length - 50);
+                return next;
+              });
+            }
             
             // Update worldEvents for EventLogPanel (convert engine events to UI format)
             const recentEvents = world.history.events.slice(-100);
