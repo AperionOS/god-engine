@@ -21,6 +21,7 @@ import { Slider } from '@/components/ui/slider';
 import { Toaster, toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 import { EventType } from './engine/history';
+import { useUIStore } from './stores/uiStore';
 
 // Initialize world singleton
 const WORLD_SIZE = 256;
@@ -38,15 +39,16 @@ export default function App() {
   const camera = useCamera(canvasRef);
   const [ctx, setCtx] = useState<CanvasContext | null>(null);
   const [tick, setTick] = useState(0);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [speed, setSpeed] = useState(1);
-  const [seed, setSeed] = useState(DEFAULT_SEED);
-  const [layers, setLayers] = useState({
-    terrain: true,
-    rivers: true,
-    vegetation: true,
-    agents: true,
-  });
+  
+  // Zustand store for UI state (persisted)
+  const { 
+    isPlaying, setPlaying, togglePlaying,
+    speed, setSpeed, incrementSpeed, decrementSpeed,
+    seed, setSeed, addToSeedHistory,
+    layers, toggleLayer,
+    showEventLog, toggleEventLog,
+  } = useUIStore();
+  
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
   const [history, setHistory] = useState<{ tick: number; population: number }[]>([]);
   
@@ -57,9 +59,6 @@ export default function App() {
     totalDeaths: 0,
     extinctionTick: null as number | null,
   });
-  
-  // UI state
-  const [showEventLog, setShowEventLog] = useState(false);
   
   // Persistence
   const persistence = usePersistence({ seed, enabled: true });
@@ -110,7 +109,7 @@ export default function App() {
 
   // Regenerate world with new seed
   const handleRegenerate = useCallback(async () => {
-    setIsPlaying(false);
+    setPlaying(false);
     world = new World({ width: WORLD_SIZE, height: WORLD_SIZE, seed });
     // Update window reference for E2E tests
     if (typeof window !== 'undefined') {
@@ -122,31 +121,41 @@ export default function App() {
     setSelectedAgent(null);
     persistence.reset();
     lastSyncedEventCount.current = 0;
+    addToSeedHistory(seed);
     
     // Start a new cloud run
     await persistence.startRun(0);
-  }, [seed, persistence]);
+    toast.success(`World regenerated with seed ${seed}`);
+  }, [seed, persistence, setPlaying, addToSeedHistory]);
 
   // Handle play/pause with cloud sync
   const handlePlayPause = useCallback(async () => {
     if (!isPlaying && !persistence.runId) {
       // Starting fresh - create cloud run
       await persistence.startRun(world.tickCount);
+      toast.success('Cloud sync started');
     }
-    setIsPlaying(!isPlaying);
-  }, [isPlaying, persistence]);
+    togglePlaying();
+  }, [isPlaying, persistence, togglePlaying]);
 
   // Generate lore
   const handleGenerateLore = useCallback(async () => {
     if (!persistence.runId) return;
     
-    await persistence.requestLore({
-      peak_population: stats.peakPopulation,
-      total_births: stats.totalBirths,
-      total_deaths: stats.totalDeaths,
-      extinction_tick: stats.extinctionTick ?? undefined,
-      final_tick: world.tickCount,
-    });
+    toast.promise(
+      persistence.requestLore({
+        peak_population: stats.peakPopulation,
+        total_births: stats.totalBirths,
+        total_deaths: stats.totalDeaths,
+        extinction_tick: stats.extinctionTick ?? undefined,
+        final_tick: world.tickCount,
+      }),
+      {
+        loading: 'Generating lore...',
+        success: 'Lore generated!',
+        error: 'Failed to generate lore',
+      }
+    );
   }, [persistence, stats]);
 
   // Keyboard shortcuts
@@ -163,23 +172,23 @@ export default function App() {
         case 'Equal':
         case 'NumpadAdd':
           e.preventDefault();
-          setSpeed(s => Math.min(s + 1, 10));
+          incrementSpeed();
           break;
         case 'Minus':
         case 'NumpadSubtract':
           e.preventDefault();
-          setSpeed(s => Math.max(s - 1, 1));
+          decrementSpeed();
           break;
         case 'KeyL':
           e.preventDefault();
-          setShowEventLog(v => !v);
+          toggleEventLog();
           break;
       }
     };
     
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handlePlayPause]);
+  }, [handlePlayPause, incrementSpeed, decrementSpeed, toggleEventLog]);
 
   // Setup Canvas
   useEffect(() => {
@@ -310,61 +319,104 @@ export default function App() {
         </div>
         
         {/* Event Log Panel (top-left, toggleable) */}
-        {showEventLog && (
-          <div className="absolute top-6 left-6 w-72 h-80 bg-gray-900/95 backdrop-blur border border-gray-700 rounded-lg p-3 shadow-xl">
-            <EventLog events={world.history.events} currentTick={tick} maxEvents={100} />
-          </div>
-        )}
+        <AnimatePresence>
+          {showEventLog && (
+            <motion.div 
+              className="absolute top-6 left-6 w-72 h-80 bg-gray-900/95 backdrop-blur border border-gray-700 rounded-lg p-3 shadow-xl"
+              initial={{ opacity: 0, x: -20, scale: 0.95 }}
+              animate={{ opacity: 1, x: 0, scale: 1 }}
+              exit={{ opacity: 0, x: -20, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
+            >
+              <EventLog events={world.history.events} currentTick={tick} maxEvents={100} />
+            </motion.div>
+          )}
+        </AnimatePresence>
         
         {/* Overlay Controls */}
-        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-4 bg-gray-900/80 backdrop-blur px-6 py-3 rounded-full border border-gray-700 shadow-xl">
-          <button 
+        <motion.div 
+          className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-4 bg-gray-900/80 backdrop-blur px-6 py-3 rounded-full border border-gray-700 shadow-xl"
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ duration: 0.3, delay: 0.1 }}
+        >
+          <motion.button 
             onClick={handlePlayPause}
             className="p-2 hover:bg-white/10 rounded-full transition-colors"
             title="Play/Pause (Space)"
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.9 }}
           >
-            {isPlaying ? <Pause size={24} /> : <Play size={24} />}
-          </button>
+            <AnimatePresence mode="wait">
+              {isPlaying ? (
+                <motion.div key="pause" initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }}>
+                  <Pause size={24} />
+                </motion.div>
+              ) : (
+                <motion.div key="play" initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }}>
+                  <Play size={24} />
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </motion.button>
           
           <div className="h-6 w-px bg-gray-700" />
           
           {/* Speed control with current speed display */}
           <div className="flex items-center gap-2">
-            <button 
-              onClick={() => setSpeed(s => Math.max(1, s - 1))}
+            <motion.button 
+              onClick={decrementSpeed}
               className="px-2 py-1 rounded text-sm font-medium hover:bg-white/10 text-gray-400"
               title="Slower (-)"
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.9 }}
             >
               −
-            </button>
-            <span className="w-8 text-center text-sm font-mono">{speed}x</span>
-            <button 
-              onClick={() => setSpeed(s => Math.min(10, s + 1))}
+            </motion.button>
+            <motion.span 
+              key={speed}
+              className="w-8 text-center text-sm font-mono"
+              initial={{ y: -10, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+            >
+              {speed}x
+            </motion.span>
+            <motion.button 
+              onClick={incrementSpeed}
               className="px-2 py-1 rounded text-sm font-medium hover:bg-white/10 text-gray-400"
               title="Faster (+)"
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.9 }}
             >
               +
-            </button>
+            </motion.button>
           </div>
           
           <div className="h-6 w-px bg-gray-700" />
           
           {/* Toggle event log */}
-          <button
-            onClick={() => setShowEventLog(v => !v)}
+          <motion.button
+            onClick={toggleEventLog}
             className={cn(
               "p-2 rounded-full transition-colors",
               showEventLog ? "bg-blue-600 text-white" : "hover:bg-white/10 text-gray-400"
             )}
             title="Event Log (L)"
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.9 }}
           >
             <ScrollText size={18} />
-          </button>
+          </motion.button>
           
           {/* Cloud sync indicator */}
           <div className="flex items-center gap-2 text-sm">
             {persistence.runId ? (
-              <Cloud size={18} className={persistence.isSaving ? "text-blue-400 animate-pulse" : "text-green-400"} />
+              <motion.div
+                animate={{ scale: persistence.isSaving ? [1, 1.2, 1] : 1 }}
+                transition={{ repeat: persistence.isSaving ? Infinity : 0, duration: 1 }}
+              >
+                <Cloud size={18} className={persistence.isSaving ? "text-blue-400" : "text-green-400"} />
+              </motion.div>
             ) : (
               <CloudOff size={18} className="text-gray-500" />
             )}
@@ -372,7 +424,7 @@ export default function App() {
               <span className="text-gray-400 text-xs">{persistence.eventsSaved}</span>
             )}
           </div>
-        </div>
+        </motion.div>
         
         {/* Keyboard shortcuts hint */}
         <div className="absolute top-6 right-6 text-xs text-gray-500 bg-gray-900/60 px-2 py-1 rounded">
@@ -381,12 +433,21 @@ export default function App() {
       </div>
 
       {/* Sidebar Inspector */}
-      <div className="w-80 border-l border-gray-800 bg-gray-900 p-4 flex flex-col gap-6">
+      <motion.div 
+        className="w-80 border-l border-gray-800 bg-gray-900 p-4 flex flex-col gap-6"
+        initial={{ x: 80, opacity: 0 }}
+        animate={{ x: 0, opacity: 1 }}
+        transition={{ duration: 0.3, ease: "easeOut" }}
+      >
         {/* Header */}
         <div className="flex items-center gap-3 pb-4 border-b border-gray-800">
-          <div className="h-10 w-10 bg-blue-600 rounded-lg flex items-center justify-center">
+          <motion.div 
+            className="h-10 w-10 bg-blue-600 rounded-lg flex items-center justify-center"
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+          >
             <Activity className="text-white" />
-          </div>
+          </motion.div>
           <div className="flex-1">
             <h1 className="font-bold text-lg">God Engine</h1>
             <p className="text-xs text-gray-400">Simulation Cockpit</p>
@@ -397,28 +458,46 @@ export default function App() {
         <div className="space-y-2">
           <h2 className="text-xs font-bold text-gray-500 uppercase tracking-wider">World Seed</h2>
           <div className="flex gap-2">
-            <input
+            <Input
               type="number"
               value={seed}
               onChange={(e) => setSeed(parseInt(e.target.value) || 0)}
-              className="flex-1 bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm font-mono focus:outline-none focus:border-blue-500"
+              className="flex-1 bg-gray-800 border-gray-700 font-mono"
             />
-            <button
+            <Button
+              variant="outline"
+              size="icon"
               onClick={handleRegenerate}
-              className="p-2 bg-gray-800 border border-gray-700 rounded hover:bg-gray-700 transition-colors"
               title="Regenerate World"
+              className="bg-gray-800 border-gray-700 hover:bg-gray-700"
             >
               <RotateCcw size={18} />
-            </button>
+            </Button>
           </div>
         </div>
 
         {/* Inspector */}
-        {selectedAgent ? (
-          <AgentInspector agent={selectedAgent} />
-        ) : (
-          /* Vitals */
-          <div className="space-y-4">
+        <AnimatePresence mode="wait">
+          {selectedAgent ? (
+            <motion.div
+              key="inspector"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.2 }}
+            >
+              <AgentInspector agent={selectedAgent} />
+            </motion.div>
+          ) : (
+            /* Vitals */
+            <motion.div 
+              key="vitals"
+              className="space-y-4"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.2 }}
+            >
             <h2 className="text-xs font-bold text-gray-500 uppercase tracking-wider">World Vitals</h2>
             
             <div className="bg-gray-800 rounded-lg p-3 border border-gray-700">
@@ -491,24 +570,33 @@ export default function App() {
             
             {/* Generate Lore Button */}
             {persistence.runId && (
-              <button
+              <Button
                 onClick={handleGenerateLore}
                 disabled={persistence.isSaving}
-                className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-500 disabled:bg-gray-700 rounded-lg text-sm font-medium transition-colors"
+                className="w-full bg-purple-600 hover:bg-purple-500 disabled:bg-gray-700"
               >
-                <Sparkles size={16} />
+                <Sparkles size={16} className="mr-2" />
                 {persistence.isSaving ? 'Generating...' : 'Generate Lore'}
-              </button>
+              </Button>
             )}
             
             {/* Lore Display */}
-            {persistence.lore && (
-              <div className="bg-gray-800 rounded-lg p-3 border border-purple-900/50 text-sm text-gray-300 italic leading-relaxed max-h-48 overflow-y-auto">
-                {persistence.lore}
-              </div>
-            )}
-          </div>
-        )}
+            <AnimatePresence>
+              {persistence.lore && (
+                <motion.div 
+                  className="bg-gray-800 rounded-lg p-3 border border-purple-900/50 text-sm text-gray-300 italic leading-relaxed max-h-48 overflow-y-auto"
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.3 }}
+                >
+                  {persistence.lore}
+                </motion.div>
+              )}
+            </AnimatePresence>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Layers */}
         <div className="space-y-4">
@@ -517,23 +605,28 @@ export default function App() {
           </h2>
           <div className="space-y-2">
             {Object.entries(layers).map(([key, active]) => (
-              <button
+              <motion.button
                 key={key}
-                onClick={() => setLayers(prev => ({ ...prev, [key]: !prev[key as keyof typeof layers] }))}
+                onClick={() => toggleLayer(key as keyof typeof layers)}
                 className={cn(
                   "w-full flex items-center justify-between px-3 py-2 rounded text-sm transition-colors border",
                   active 
                     ? "bg-blue-600/10 border-blue-600/30 text-blue-400" 
                     : "bg-gray-800 border-gray-700 text-gray-400 hover:bg-gray-700"
                 )}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
               >
                 <span className="capitalize">{key}</span>
-                <div className={cn("w-2 h-2 rounded-full", active ? "bg-blue-400" : "bg-gray-600")} />
-              </button>
+                <motion.div 
+                  className={cn("w-2 h-2 rounded-full", active ? "bg-blue-400" : "bg-gray-600")}
+                  animate={{ scale: active ? 1 : 0.8 }}
+                />
+              </motion.button>
             ))}
           </div>
         </div>
-      </div>
+      </motion.div>
       <Toaster 
         theme="dark" 
         position="bottom-right"
