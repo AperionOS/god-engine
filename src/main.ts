@@ -33,7 +33,11 @@ function render() {
   // Update stats
   const statsEl = document.getElementById('stats');
   if (statsEl) {
-    statsEl.textContent = `Tick: ${world.tickCount} | Seed: ${world.seed}`;
+    const lastEvent = world.history.getRecent(1)[0];
+    const eventText = lastEvent 
+      ? ` | Last Event: ${lastEvent.type} @ ${lastEvent.tick}` 
+      : '';
+    statsEl.textContent = `Tick: ${world.tickCount} | Seed: ${world.seed} | Agents: ${world.agents.length}${eventText}`;
   }
 }
 
