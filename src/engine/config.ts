@@ -17,6 +17,10 @@ export const WORLD_CONFIG = {
 
   // Vegetation Rules
   VEGETATION: {
+    // Scarcity v1: Start below max so the world isn't fully saturated at tick 0
+    INITIAL_BASE: 0.25,           // 25% of biome max
+    INITIAL_MOISTURE_BONUS: 0.55, // +55% * moisture (0..1)
+
     MAX_DENSITY: {
       [BiomeType.OCEAN]: 0,
       [BiomeType.BEACH]: 0.1,
@@ -27,13 +31,14 @@ export const WORLD_CONFIG = {
       [BiomeType.SNOW]: 0,
     } as Record<BiomeType, number>,
     
+    // Scarcity v1: Tuned down ~5-10x (prevents infinite food)
     GROWTH_RATE: {
       [BiomeType.OCEAN]: 0,
-      [BiomeType.BEACH]: 0.001,
-      [BiomeType.PLAINS]: 0.005,
-      [BiomeType.FOREST]: 0.01,
-      [BiomeType.DESERT]: 0.0005,
-      [BiomeType.MOUNTAIN]: 0.002,
+      [BiomeType.BEACH]: 0.0002,
+      [BiomeType.PLAINS]: 0.0010,
+      [BiomeType.FOREST]: 0.0020,
+      [BiomeType.DESERT]: 0.0001,
+      [BiomeType.MOUNTAIN]: 0.0005,
       [BiomeType.SNOW]: 0,
     } as Record<BiomeType, number>,
   },
@@ -43,13 +48,26 @@ export const WORLD_CONFIG = {
     MAX_HUNGER: 100,
     HUNGER_RATE: 0.1,
     MOVE_COST: 0.05, // Cost per tick when moving at speed 1
+
+    // Scarcity v1: cap & decay stored energy so reproduction requires sustained intake
+    MAX_ENERGY: 100,
+    ENERGY_DECAY: 0.02, // per tick
+
     SENSE_RADIUS: 5,
     SPEED: 1,
+
     REPRODUCTION: {
       HUNGER_THRESHOLD: 10, // Must have hunger below this to reproduce
       ENERGY_REQUIRED: 50,  // "Satiety" points required to produce offspring
+
+      // Scarcity v1: reproduction only in locally abundant cells
+      MIN_LOCAL_VEG: 0.25,
+
+      // Scarcity v1: prevent rapid repeat births from the same agent
+      COOLDOWN_TICKS: 300,
+
       MUTATION_RATE: 0.1,   // Chance of a trait mutating
       MUTATION_AMOUNT: 0.2, // Max +/- change in trait value
-    }
-  }
+    },
+  },
 };

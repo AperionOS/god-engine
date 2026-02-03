@@ -103,7 +103,7 @@ export class World {
     this.flowMap = calculateFlow(this.heightMap);
     this.moistureMap = calculateMoisture(this.heightMap, this.flowMap);
     this.biomeMap = generateBiomeMap(this.heightMap, this.moistureMap);
-    this.vegetationMap = initializeVegetation(this.biomeMap);
+    this.vegetationMap = initializeVegetation(this.biomeMap, this.moistureMap);
 
     // Initial population spawning
     this.nextAgentId = 1;
@@ -147,19 +147,27 @@ export class World {
       for (const agent of this.agents) {
         agent.update(this.vegetationMap, this.rng);
 
+        // Scarcity v1: Drowning check - agents in ocean die
+        const ax = Math.floor(agent.x);
+        const ay = Math.floor(agent.y);
+        const biomeHere = this.biomeMap.get(ax, ay);
+        if (biomeHere === BiomeType.OCEAN && !agent.isDead()) {
+          agent.kill('Drowning');
+        }
+
         if (agent.isDead()) {
-          // Return nutrients to soil
-          const x = Math.floor(agent.x);
-          const y = Math.floor(agent.y);
-          const currentVeg = this.vegetationMap.get(x, y);
-          this.vegetationMap.set(x, y, currentVeg + 0.5); // Carcass nutrients
+          // Return nutrients to soil only in valid biomes
+          if (biomeHere !== BiomeType.OCEAN && biomeHere !== BiomeType.SNOW) {
+            const currentVeg = this.vegetationMap.get(ax, ay);
+            this.vegetationMap.set(ax, ay, currentVeg + 0.35);
+          }
           
           this.history.log({
             tick: this.tickCount,
             type: EventType.AGENT_DEATH,
             x: agent.x,
             y: agent.y,
-            details: 'Starvation',
+            details: agent.deathCause ?? 'Unknown',
           });
           continue; // Remove from list
         }

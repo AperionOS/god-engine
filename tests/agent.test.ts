@@ -14,8 +14,8 @@ describe('Agent', () => {
     const moistureMap = calculateMoisture(heightMap, flowMap);
     const biomeMap = generateBiomeMap(heightMap, moistureMap);
     
-    const vegetation1 = initializeVegetation(biomeMap);
-    const vegetation2 = initializeVegetation(biomeMap);
+    const vegetation1 = initializeVegetation(biomeMap, moistureMap);
+    const vegetation2 = initializeVegetation(biomeMap, moistureMap);
 
     const agent1 = new Agent({ x: 32, y: 32 });
     const agent2 = new Agent({ x: 32, y: 32 });
@@ -37,7 +37,7 @@ describe('Agent', () => {
     const flowMap = calculateFlow(heightMap);
     const moistureMap = calculateMoisture(heightMap, flowMap);
     const biomeMap = generateBiomeMap(heightMap, moistureMap);
-    const vegetation = initializeVegetation(biomeMap);
+    const vegetation = initializeVegetation(biomeMap, moistureMap);
 
     const agent = new Agent({ x: 0, y: 0 });
     const rng = new SeededRNG(222);
@@ -57,7 +57,7 @@ describe('Agent', () => {
     const flowMap = calculateFlow(heightMap);
     const moistureMap = calculateMoisture(heightMap, flowMap);
     const biomeMap = generateBiomeMap(heightMap, moistureMap);
-    const vegetation = initializeVegetation(biomeMap);
+    const vegetation = initializeVegetation(biomeMap, moistureMap);
 
     const agent = new Agent({ x: 32, y: 32 });
     const rng = new SeededRNG(333);
@@ -74,7 +74,7 @@ describe('Agent', () => {
     const flowMap = calculateFlow(heightMap);
     const moistureMap = calculateMoisture(heightMap, flowMap);
     const biomeMap = generateBiomeMap(heightMap, moistureMap);
-    const vegetation = initializeVegetation(biomeMap);
+    const vegetation = initializeVegetation(biomeMap, moistureMap);
 
     // Clear vegetation so agent can't eat
     for (let i = 0; i < vegetation.data.length; i++) {

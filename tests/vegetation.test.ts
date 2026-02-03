@@ -12,13 +12,13 @@ describe('VegetationMap', () => {
     const flowMap1 = calculateFlow(heightMap1);
     const moistureMap1 = calculateMoisture(heightMap1, flowMap1);
     const biomeMap1 = generateBiomeMap(heightMap1, moistureMap1);
-    const vegetation1 = initializeVegetation(biomeMap1);
+    const vegetation1 = initializeVegetation(biomeMap1, moistureMap1);
 
     const heightMap2 = generateHeightMap({ width: 64, height: 64, seed: 888 });
     const flowMap2 = calculateFlow(heightMap2);
     const moistureMap2 = calculateMoisture(heightMap2, flowMap2);
     const biomeMap2 = generateBiomeMap(heightMap2, moistureMap2);
-    const vegetation2 = initializeVegetation(biomeMap2);
+    const vegetation2 = initializeVegetation(biomeMap2, moistureMap2);
 
     expect(checksumVegetationLegacy(vegetation1)).toBe(checksumVegetationLegacy(vegetation2));
   });
@@ -28,7 +28,7 @@ describe('VegetationMap', () => {
     const flowMap = calculateFlow(heightMap);
     const moistureMap = calculateMoisture(heightMap, flowMap);
     const biomeMap = generateBiomeMap(heightMap, moistureMap);
-    const vegetation = initializeVegetation(biomeMap);
+    const vegetation = initializeVegetation(biomeMap, moistureMap);
 
     for (let i = 0; i < vegetation.data.length; i++) {
       expect(vegetation.data[i]).toBeGreaterThanOrEqual(0);
@@ -42,8 +42,8 @@ describe('VegetationMap', () => {
     const moistureMap = calculateMoisture(heightMap, flowMap);
     const biomeMap = generateBiomeMap(heightMap, moistureMap);
     
-    const vegetation1 = initializeVegetation(biomeMap);
-    const vegetation2 = initializeVegetation(biomeMap);
+    const vegetation1 = initializeVegetation(biomeMap, moistureMap);
+    const vegetation2 = initializeVegetation(biomeMap, moistureMap);
 
     // Consume some vegetation
     vegetation1.consume(10, 10, 0.5);
@@ -61,7 +61,7 @@ describe('VegetationMap', () => {
     const flowMap = calculateFlow(heightMap);
     const moistureMap = calculateMoisture(heightMap, flowMap);
     const biomeMap = generateBiomeMap(heightMap, moistureMap);
-    const vegetation = initializeVegetation(biomeMap);
+    const vegetation = initializeVegetation(biomeMap, moistureMap);
 
     const initial = vegetation.get(15, 15);
     const consumed = vegetation.consume(15, 15, 0.3);

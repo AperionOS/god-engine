@@ -58,6 +58,8 @@ export interface SerializedAgent {
   senseRadius: number;
   state: string;
   maxHunger: number;
+  maxEnergy: number;
+  reproCooldown: number;
 }
 
 /**
@@ -126,6 +128,8 @@ export function serializeWorld(world: World): SerializedWorld {
       senseRadius: agent.senseRadius,
       state: agent.state,
       maxHunger: agent.maxHunger,
+      maxEnergy: agent.maxEnergy,
+      reproCooldown: agent.reproCooldown,
     })),
     history: world.history.events,
     rngState: world.rng.getState(),
@@ -213,6 +217,8 @@ export function deserializeWorld(data: SerializedWorld): World {
     });
     agent.state = a.state as AgentState;
     agent.maxHunger = a.maxHunger;
+    agent.maxEnergy = a.maxEnergy ?? 100; // Default for backwards compat
+    agent.reproCooldown = a.reproCooldown ?? 0;
     return agent;
   });
 

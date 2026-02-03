@@ -30,6 +30,13 @@ export class Agent {
   senseRadius: number;
   state: AgentState = AgentState.IDLE;
   maxHunger: number = WORLD_CONFIG.AGENT.MAX_HUNGER;
+  maxEnergy: number = WORLD_CONFIG.AGENT.MAX_ENERGY;
+
+  /** Scarcity v1: Cooldown ticks before agent can reproduce again */
+  reproCooldown: number = 0;
+
+  /** Scarcity v1: Set when the agent enters DEAD state (for explainability) */
+  deathCause: string | null = null;
 
   constructor(config: AgentConfig) {
     this.id = config.id ?? 0;
@@ -41,13 +48,27 @@ export class Agent {
     this.senseRadius = config.senseRadius ?? WORLD_CONFIG.AGENT.SENSE_RADIUS;
   }
 
+  /** Scarcity v1: Kill agent with a specific cause for logging */
+  kill(cause: string): void {
+    this.deathCause = cause;
+    this.state = AgentState.DEAD;
+  }
+
   update(vegetation: VegetationMap, rng: SeededRNG): void {
     if (this.state === AgentState.DEAD) return;
 
-    // Hunger logic
+    // Cooldowns
+    if (this.reproCooldown > 0) this.reproCooldown--;
+
+    // Scarcity v1: Stored energy decays slowly (prevents "infinite reproduction")
+    this.energy = Math.max(0, this.energy - WORLD_CONFIG.AGENT.ENERGY_DECAY);
+
+    // Hunger increases every tick
     this.hunger += WORLD_CONFIG.AGENT.HUNGER_RATE;
+
+    // Hard starvation death
     if (this.hunger >= this.maxHunger) {
-      this.state = AgentState.DEAD;
+      this.kill('Starvation');
       return;
     }
 
@@ -63,21 +84,32 @@ export class Agent {
         this.handleEating(vegetation);
         break;
       case AgentState.REPRODUCING:
-        // Transition state, usually handled by World
+        // Transition state, handled by World
         break;
     }
 
-    // Reproduction check
-    if (this.state === AgentState.IDLE && 
-        this.hunger < WORLD_CONFIG.AGENT.REPRODUCTION.HUNGER_THRESHOLD && 
-        this.energy >= WORLD_CONFIG.AGENT.REPRODUCTION.ENERGY_REQUIRED) {
-      this.state = AgentState.REPRODUCING;
+    // Scarcity v1: Reproduction gate - must be well-fed + have energy + be in abundant cell + off cooldown
+    if (this.state === AgentState.IDLE && this.reproCooldown === 0) {
+      const cellX = Math.floor(this.x);
+      const cellY = Math.floor(this.y);
+      const localVeg = vegetation.get(cellX, cellY);
+
+      if (
+        this.hunger < WORLD_CONFIG.AGENT.REPRODUCTION.HUNGER_THRESHOLD &&
+        this.energy >= WORLD_CONFIG.AGENT.REPRODUCTION.ENERGY_REQUIRED &&
+        localVeg >= WORLD_CONFIG.AGENT.REPRODUCTION.MIN_LOCAL_VEG
+      ) {
+        this.state = AgentState.REPRODUCING;
+      }
     }
 
     // Clamp to world bounds
     const { width, height } = vegetation;
     this.x = Math.max(0, Math.min(width - 1, this.x));
     this.y = Math.max(0, Math.min(height - 1, this.y));
+
+    // Clamp energy
+    this.energy = Math.max(0, Math.min(this.maxEnergy, this.energy));
   }
 
   private handleIdle(rng: SeededRNG): void {
@@ -143,8 +175,10 @@ export class Agent {
     }
 
     const consumed = vegetation.consume(cellX, cellY, 0.2);
+    
+    // Eating reduces hunger and increases stored energy
     this.hunger -= consumed * 15;
-    this.energy += consumed * 20; // Gain energy from eating
+    this.energy += consumed * 20;
 
     if (this.hunger <= 0) {
       this.hunger = 0;
@@ -164,6 +198,10 @@ export class Agent {
 
   reproduce(nextId: number, rng: SeededRNG): Agent {
     this.energy -= WORLD_CONFIG.AGENT.REPRODUCTION.ENERGY_REQUIRED;
+    this.energy = Math.max(0, this.energy);
+
+    // Scarcity v1: Set reproduction cooldown
+    this.reproCooldown = WORLD_CONFIG.AGENT.REPRODUCTION.COOLDOWN_TICKS;
     this.state = AgentState.IDLE;
 
     // Mutate traits

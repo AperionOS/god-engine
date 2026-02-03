@@ -107,12 +107,12 @@ export function checksumVegetation(vegetation: VegetationMap): string {
 
 /**
  * Agent Hash
- * Inputs: position (x, y), hunger, speed, sense radius
+ * Inputs: position (x, y), hunger, energy, speed, sense radius, repro cooldown, state
  * Sensitive to: agent state and configuration
  * Order-independent for multiple agents (sorted by x, then y)
  */
 export function checksumAgent(agent: Agent): string {
-  const data = `${agent.id},${agent.x.toFixed(3)},${agent.y.toFixed(3)},${agent.hunger.toFixed(3)},${agent.speed},${agent.senseRadius},${agent.state}`;
+  const data = `${agent.id},${agent.x.toFixed(3)},${agent.y.toFixed(3)},${agent.hunger.toFixed(3)},${agent.energy.toFixed(3)},${agent.speed},${agent.senseRadius},${agent.reproCooldown},${agent.state}`;
   return fnv1aHash(data);
 }
 
