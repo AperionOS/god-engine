@@ -322,7 +322,7 @@ export default function App() {
         <AnimatePresence>
           {showEventLog && (
             <motion.div 
-              className="absolute top-6 left-6 w-72 h-80 bg-gray-900/95 backdrop-blur border border-gray-700 rounded-lg p-3 shadow-xl"
+              className="absolute top-6 left-6 z-30 w-72 h-80 bg-gray-900/95 backdrop-blur border border-gray-700 rounded-lg p-3 shadow-xl"
               initial={{ opacity: 0, x: -20, scale: 0.95 }}
               animate={{ opacity: 1, x: 0, scale: 1 }}
               exit={{ opacity: 0, x: -20, scale: 0.95 }}
@@ -335,7 +335,7 @@ export default function App() {
         
         {/* Overlay Controls */}
         <motion.div 
-          className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-4 bg-gray-900/80 backdrop-blur px-6 py-3 rounded-full border border-gray-700 shadow-xl"
+          className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 flex items-center gap-4 bg-gray-900/80 backdrop-blur px-6 py-3 rounded-full border border-gray-700 shadow-xl"
           initial={{ y: 20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ duration: 0.3, delay: 0.1 }}
@@ -427,7 +427,7 @@ export default function App() {
         </motion.div>
         
         {/* Keyboard shortcuts hint */}
-        <div className="absolute top-6 right-6 text-xs text-gray-500 bg-gray-900/60 px-2 py-1 rounded">
+        <div className="absolute top-6 right-6 text-xs text-gray-500 bg-gray-900/60 px-2 py-1 rounded pointer-events-none select-none">
           Space: Play · +/-: Speed · L: Log
         </div>
       </div>
