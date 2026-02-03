@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { World } from './engine/world';
-import { setupCanvas, clearCanvas, CanvasContext } from './ui/canvas';
+import { setupCanvas, CanvasContext } from './ui/canvas';
 import { renderTerrain } from './ui/renderers/terrain';
 import { renderRivers } from './ui/renderers/rivers';
 import { renderVegetation } from './ui/renderers/vegetation';
@@ -13,8 +13,13 @@ import { EventLog } from './ui/components/EventLog';
 import { Agent } from './engine/agent';
 import { usePersistence } from './api';
 import { Activity, Users, Settings, Play, Pause, Cloud, CloudOff, Sparkles, RotateCcw, ScrollText } from 'lucide-react';
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
-import { clsx } from 'clsx';
+import { ResponsiveLine } from '@nivo/line';
+import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Slider } from '@/components/ui/slider';
+import { Toaster, toast } from 'sonner';
+import { motion, AnimatePresence } from 'framer-motion';
 import { EventType } from './engine/history';
 
 // Initialize world singleton
@@ -347,7 +352,7 @@ export default function App() {
           {/* Toggle event log */}
           <button
             onClick={() => setShowEventLog(v => !v)}
-            className={clsx(
+            className={cn(
               "p-2 rounded-full transition-colors",
               showEventLog ? "bg-blue-600 text-white" : "hover:bg-white/10 text-gray-400"
             )}
@@ -438,25 +443,38 @@ export default function App() {
 
             {/* Population Graph */}
             <div className="h-32 bg-gray-800 rounded-lg p-2 border border-gray-700">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={history}>
-                  <XAxis dataKey="tick" hide />
-                  <YAxis hide domain={['auto', 'auto']} />
-                  <Tooltip 
-                    contentStyle={{ backgroundColor: '#1f2937', borderColor: '#374151', color: '#fff' }}
-                    itemStyle={{ color: '#60a5fa' }}
-                    labelStyle={{ display: 'none' }}
-                  />
-                  <Line 
-                    type="monotone" 
-                    dataKey="population" 
-                    stroke="#3b82f6" 
-                    strokeWidth={2} 
-                    dot={false}
-                    isAnimationActive={false}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
+              <ResponsiveLine
+                data={[{
+                  id: 'population',
+                  data: history.map(h => ({ x: h.tick, y: h.population }))
+                }]}
+                colors={['#3b82f6']}
+                enablePoints={false}
+                enableGridX={false}
+                enableGridY={false}
+                axisBottom={null}
+                axisLeft={null}
+                axisTop={null}
+                axisRight={null}
+                enableArea={true}
+                areaOpacity={0.15}
+                curve="monotoneX"
+                animate={false}
+                isInteractive={true}
+                useMesh={true}
+                margin={{ top: 5, right: 5, bottom: 5, left: 5 }}
+                theme={{
+                  tooltip: {
+                    container: {
+                      background: '#1f2937',
+                      color: '#fff',
+                      fontSize: 12,
+                      borderRadius: 4,
+                      boxShadow: '0 4px 6px rgba(0, 0, 0, 0.3)',
+                    },
+                  },
+                }}
+              />
             </div>
             
             {/* Stats Summary */}
@@ -502,7 +520,7 @@ export default function App() {
               <button
                 key={key}
                 onClick={() => setLayers(prev => ({ ...prev, [key]: !prev[key as keyof typeof layers] }))}
-                className={clsx(
+                className={cn(
                   "w-full flex items-center justify-between px-3 py-2 rounded text-sm transition-colors border",
                   active 
                     ? "bg-blue-600/10 border-blue-600/30 text-blue-400" 
@@ -510,12 +528,22 @@ export default function App() {
                 )}
               >
                 <span className="capitalize">{key}</span>
-                <div className={clsx("w-2 h-2 rounded-full", active ? "bg-blue-400" : "bg-gray-600")} />
+                <div className={cn("w-2 h-2 rounded-full", active ? "bg-blue-400" : "bg-gray-600")} />
               </button>
             ))}
           </div>
         </div>
       </div>
+      <Toaster 
+        theme="dark" 
+        position="bottom-right"
+        toastOptions={{
+          style: {
+            background: '#1f2937',
+            border: '1px solid #374151',
+          },
+        }}
+      />
     </div>
   );
 }
