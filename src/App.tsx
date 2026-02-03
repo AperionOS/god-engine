@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { World } from './engine/world';
 import { setupCanvas, clearCanvas, CanvasContext } from './ui/canvas';
 import { renderTerrain } from './ui/renderers/terrain';
@@ -8,14 +8,17 @@ import { renderAgents } from './ui/renderers/agent';
 import { useCamera } from './ui/hooks/useCamera';
 import { AgentInspector } from './ui/components/AgentInspector';
 import { Agent } from './engine/agent';
-import { Activity, Users, Settings, Play, Pause, FastForward, ZoomIn } from 'lucide-react';
+import { usePersistence } from './api';
+import { Activity, Users, Settings, Play, Pause, Cloud, CloudOff, Sparkles, RotateCcw } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { EventType } from './engine/history';
 
 // Initialize world singleton
 const WORLD_SIZE = 256;
-const world = new World({ width: WORLD_SIZE, height: WORLD_SIZE, seed: 12345 });
+const DEFAULT_SEED = 12345;
+let world = new World({ width: WORLD_SIZE, height: WORLD_SIZE, seed: DEFAULT_SEED });
 
 export default function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -24,6 +27,7 @@ export default function App() {
   const [tick, setTick] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [speed, setSpeed] = useState(1);
+  const [seed, setSeed] = useState(DEFAULT_SEED);
   const [layers, setLayers] = useState({
     terrain: true,
     rivers: true,
@@ -32,6 +36,18 @@ export default function App() {
   });
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
   const [history, setHistory] = useState<{ tick: number; population: number }[]>([]);
+  
+  // Stats tracking
+  const [stats, setStats] = useState({
+    peakPopulation: 0,
+    totalBirths: 0,
+    totalDeaths: 0,
+    extinctionTick: null as number | null,
+  });
+  
+  // Persistence
+  const persistence = usePersistence({ seed, enabled: true });
+  const lastSyncedEventCount = useRef(0);
 
   const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (!canvasRef.current || !ctx) return;
@@ -71,6 +87,43 @@ export default function App() {
     setSelectedAgent(agent || null);
   };
 
+  // Regenerate world with new seed
+  const handleRegenerate = useCallback(async () => {
+    setIsPlaying(false);
+    world = new World({ width: WORLD_SIZE, height: WORLD_SIZE, seed });
+    setTick(0);
+    setHistory([]);
+    setStats({ peakPopulation: 0, totalBirths: 0, totalDeaths: 0, extinctionTick: null });
+    setSelectedAgent(null);
+    persistence.reset();
+    lastSyncedEventCount.current = 0;
+    
+    // Start a new cloud run
+    await persistence.startRun(0);
+  }, [seed, persistence]);
+
+  // Handle play/pause with cloud sync
+  const handlePlayPause = useCallback(async () => {
+    if (!isPlaying && !persistence.runId) {
+      // Starting fresh - create cloud run
+      await persistence.startRun(world.tickCount);
+    }
+    setIsPlaying(!isPlaying);
+  }, [isPlaying, persistence]);
+
+  // Generate lore
+  const handleGenerateLore = useCallback(async () => {
+    if (!persistence.runId) return;
+    
+    await persistence.requestLore({
+      peak_population: stats.peakPopulation,
+      total_births: stats.totalBirths,
+      total_deaths: stats.totalDeaths,
+      extinction_tick: stats.extinctionTick ?? undefined,
+      final_tick: world.tickCount,
+    });
+  }, [persistence, stats]);
+
   // Setup Canvas
   useEffect(() => {
     if (canvasRef.current && !ctx) {
@@ -94,8 +147,27 @@ export default function App() {
         const fixedDelta = 16; // 60 ticks/sec
 
         while (accumulator >= fixedDelta) {
+          const prevAgentCount = world.agents.length;
           world.tick();
           setTick(world.tickCount); // Trigger React re-render
+          
+          // Track stats
+          const currentPop = world.agents.length;
+          setStats(prev => {
+            const births = world.history.events.filter(e => e.type === EventType.AGENT_SPAWN).length;
+            const deaths = world.history.events.filter(e => e.type === EventType.AGENT_DEATH).length;
+            const newPeak = Math.max(prev.peakPopulation, currentPop);
+            const extinction = currentPop === 0 && prev.extinctionTick === null 
+              ? world.tickCount 
+              : prev.extinctionTick;
+            
+            return {
+              peakPopulation: newPeak,
+              totalBirths: births,
+              totalDeaths: deaths,
+              extinctionTick: extinction,
+            };
+          });
           
           // Update Graph every 60 ticks (approx 1 sec)
           if (world.tickCount % 60 === 0) {
@@ -105,6 +177,15 @@ export default function App() {
               if (next.length > 50) return next.slice(next.length - 50);
               return next;
             });
+            
+            // Sync events to cloud periodically
+            if (persistence.runId) {
+              const newEvents = world.history.events.slice(lastSyncedEventCount.current);
+              if (newEvents.length > 0) {
+                persistence.queueEvents(newEvents);
+                lastSyncedEventCount.current = world.history.events.length;
+              }
+            }
           }
 
           accumulator -= fixedDelta;
@@ -137,7 +218,7 @@ export default function App() {
 
     animationFrameId = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(animationFrameId);
-  }, [ctx, isPlaying, speed, layers, camera]);
+  }, [ctx, isPlaying, speed, layers, camera, persistence]);
 
   return (
     <div className="flex h-screen w-screen bg-gray-900 text-white overflow-hidden">
@@ -153,7 +234,7 @@ export default function App() {
         {/* Overlay Controls */}
         <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-4 bg-gray-900/80 backdrop-blur px-6 py-3 rounded-full border border-gray-700 shadow-xl">
           <button 
-            onClick={() => setIsPlaying(!isPlaying)}
+            onClick={handlePlayPause}
             className="p-2 hover:bg-white/10 rounded-full transition-colors"
           >
             {isPlaying ? <Pause size={24} /> : <Play size={24} />}
@@ -173,6 +254,20 @@ export default function App() {
           >
             5x
           </button>
+          
+          <div className="h-6 w-px bg-gray-700" />
+          
+          {/* Cloud sync indicator */}
+          <div className="flex items-center gap-2 text-sm">
+            {persistence.runId ? (
+              <Cloud size={18} className={persistence.isSaving ? "text-blue-400 animate-pulse" : "text-green-400"} />
+            ) : (
+              <CloudOff size={18} className="text-gray-500" />
+            )}
+            {persistence.eventsSaved > 0 && (
+              <span className="text-gray-400 text-xs">{persistence.eventsSaved}</span>
+            )}
+          </div>
         </div>
       </div>
 
@@ -183,9 +278,29 @@ export default function App() {
           <div className="h-10 w-10 bg-blue-600 rounded-lg flex items-center justify-center">
             <Activity className="text-white" />
           </div>
-          <div>
+          <div className="flex-1">
             <h1 className="font-bold text-lg">God Engine</h1>
             <p className="text-xs text-gray-400">Simulation Cockpit</p>
+          </div>
+        </div>
+
+        {/* Seed Control */}
+        <div className="space-y-2">
+          <h2 className="text-xs font-bold text-gray-500 uppercase tracking-wider">World Seed</h2>
+          <div className="flex gap-2">
+            <input
+              type="number"
+              value={seed}
+              onChange={(e) => setSeed(parseInt(e.target.value) || 0)}
+              className="flex-1 bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm font-mono focus:outline-none focus:border-blue-500"
+            />
+            <button
+              onClick={handleRegenerate}
+              className="p-2 bg-gray-800 border border-gray-700 rounded hover:bg-gray-700 transition-colors"
+              title="Regenerate World"
+            >
+              <RotateCcw size={18} />
+            </button>
           </div>
         </div>
 
@@ -239,6 +354,37 @@ export default function App() {
                 </LineChart>
               </ResponsiveContainer>
             </div>
+            
+            {/* Stats Summary */}
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <div className="bg-gray-800 rounded p-2 border border-gray-700">
+                <span className="text-gray-400">Peak</span>
+                <div className="font-mono font-bold text-green-400">{stats.peakPopulation}</div>
+              </div>
+              <div className="bg-gray-800 rounded p-2 border border-gray-700">
+                <span className="text-gray-400">Deaths</span>
+                <div className="font-mono font-bold text-red-400">{stats.totalDeaths}</div>
+              </div>
+            </div>
+            
+            {/* Generate Lore Button */}
+            {persistence.runId && (
+              <button
+                onClick={handleGenerateLore}
+                disabled={persistence.isSaving}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-500 disabled:bg-gray-700 rounded-lg text-sm font-medium transition-colors"
+              >
+                <Sparkles size={16} />
+                {persistence.isSaving ? 'Generating...' : 'Generate Lore'}
+              </button>
+            )}
+            
+            {/* Lore Display */}
+            {persistence.lore && (
+              <div className="bg-gray-800 rounded-lg p-3 border border-purple-900/50 text-sm text-gray-300 italic leading-relaxed max-h-48 overflow-y-auto">
+                {persistence.lore}
+              </div>
+            )}
           </div>
         )}
 
