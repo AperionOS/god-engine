@@ -427,16 +427,19 @@ export default function App() {
   }, [ctx, isPlaying, speed, layers, camera, persistence]);
 
   return (
-    <div className="flex h-screen w-screen bg-gray-950 text-white overflow-hidden">
-      {/* Main Viewport */}
-      <div className="flex-1 relative flex items-center justify-center">
+    <div className="relative w-screen h-screen overflow-hidden bg-gray-950 text-white">
+      {/* Layer 0: Canvas (The World) */}
+      <div className="absolute inset-0 z-0 flex items-center justify-center">
         <canvas 
           id="game-canvas" 
           ref={canvasRef}
           onClick={handleCanvasClick}
           className="shadow-2xl border border-gray-800 rounded-xl cursor-crosshair"
         />
-        
+      </div>
+      
+      {/* Layer 1: HUD Overlays (pointer-events-none container, children opt-in) */}
+      <div className="absolute inset-0 z-10 pointer-events-none">
         {/* Cell Tooltip */}
         {ctx && (
           <CellTooltip
@@ -447,19 +450,20 @@ export default function App() {
           />
         )}
         
-        {/* Camera Controls (left) */}
-        <CameraControls
-          zoom={camera.zoom}
-          onZoomIn={handleZoomIn}
-          onZoomOut={handleZoomOut}
-          onReset={handleResetCamera}
-          onCenter={handleCenterOnAgents}
-          onPan={handlePan}
-          className="absolute left-4 top-1/2 -translate-y-1/2"
-        />
+        {/* Camera Controls (left center) */}
+        <div className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-auto">
+          <CameraControls
+            zoom={camera.zoom}
+            onZoomIn={handleZoomIn}
+            onZoomOut={handleZoomOut}
+            onReset={handleResetCamera}
+            onCenter={handleCenterOnAgents}
+            onPan={handlePan}
+          />
+        </div>
         
         {/* Minimap (bottom-left) */}
-        <div className="absolute bottom-20 left-4">
+        <div className="absolute bottom-20 left-4 pointer-events-auto">
           <Minimap
             world={world}
             camera={camera}
@@ -469,9 +473,9 @@ export default function App() {
           />
         </div>
         
-        {/* Event Log Panel */}
+        {/* Event Log Panel (top-left) */}
         {showEventLog && (
-          <div className="absolute top-4 left-4 z-30">
+          <div className="absolute top-4 left-4 pointer-events-auto">
             <EventLogPanel
               events={worldEvents}
               isVisible={showEventLog}
@@ -481,7 +485,7 @@ export default function App() {
         )}
         
         {/* Control Bar (bottom center) */}
-        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20">
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 pointer-events-auto">
           <ControlBar
             isPlaying={isPlaying}
             speed={speed}
@@ -495,34 +499,36 @@ export default function App() {
           />
         </div>
         
-        {/* Keyboard shortcuts hint */}
-        <div className="absolute top-4 right-4 text-xs text-gray-500 bg-gray-900/60 backdrop-blur px-3 py-1.5 rounded-lg pointer-events-none select-none border border-gray-800/50">
+        {/* Keyboard shortcuts hint (top-right, but not over sidebar) */}
+        <div className="absolute top-4 right-[340px] text-xs text-gray-500 bg-gray-900/60 backdrop-blur px-3 py-1.5 rounded-lg border border-gray-800/50">
           Space: Play · +/-: Speed · L: Log · F: Fullscreen
         </div>
       </div>
 
-      {/* Sidebar */}
-      <Sidebar
-        tick={tick}
-        population={world.agents.length}
-        stats={stats}
-        history={history}
-        terrainLocation={terrainLocation}
-        seed={seed}
-        onSeedChange={setSeed}
-        onRegenerate={handleRegenerate}
-        onLoadRealTerrain={() => setShowLocationPicker(true)}
-        layers={layers}
-        onToggleLayer={toggleLayer}
-        cloudConnected={!!persistence.runId}
-        cloudSaving={persistence.isSaving}
-        eventsSaved={persistence.eventsSaved}
-        onGenerateLore={persistence.runId ? handleGenerateLore : undefined}
-        lore={persistence.lore || undefined}
-        isGeneratingLore={persistence.isSaving}
-        isCollapsed={sidebarCollapsed}
-        onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
-      />
+      {/* Layer 2: Sidebar (right side, full height) */}
+      <div className="absolute top-0 right-0 h-full z-20 pointer-events-auto">
+        <Sidebar
+          tick={tick}
+          population={world.agents.length}
+          stats={stats}
+          history={history}
+          terrainLocation={terrainLocation}
+          seed={seed}
+          onSeedChange={setSeed}
+          onRegenerate={handleRegenerate}
+          onLoadRealTerrain={() => setShowLocationPicker(true)}
+          layers={layers}
+          onToggleLayer={toggleLayer}
+          cloudConnected={!!persistence.runId}
+          cloudSaving={persistence.isSaving}
+          eventsSaved={persistence.eventsSaved}
+          onGenerateLore={persistence.runId ? handleGenerateLore : undefined}
+          lore={persistence.lore || undefined}
+          isGeneratingLore={persistence.isSaving}
+          isCollapsed={sidebarCollapsed}
+          onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+        />
+      </div>
       
       <Toaster 
         theme="dark" 
