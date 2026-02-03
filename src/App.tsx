@@ -26,7 +26,6 @@ import { fetchTerrain, normalizeElevations, type LatLng } from './services/terra
 // Initialize world singleton
 const WORLD_SIZE = 256;
 const DEFAULT_SEED = 12345;
-const CANVAS_SIZE = 800;
 let world = new World({ width: WORLD_SIZE, height: WORLD_SIZE, seed: DEFAULT_SEED });
 
 // Expose world for E2E testing (determinism verification)
@@ -236,8 +235,10 @@ export default function App() {
     const avgX = world.agents.reduce((sum, a) => sum + a.x, 0) / world.agents.length;
     const avgY = world.agents.reduce((sum, a) => sum + a.y, 0) / world.agents.length;
     // Convert to canvas coordinates
-    camera.setPosition(-(avgX / world.width - 0.5) * CANVAS_SIZE, -(avgY / world.height - 0.5) * CANVAS_SIZE);
-  }, [camera]);
+    const canvasWidth = ctx?.width ?? window.innerWidth;
+    const canvasHeight = ctx?.height ?? window.innerHeight;
+    camera.setPosition(-(avgX / world.width - 0.5) * canvasWidth, -(avgY / world.height - 0.5) * canvasHeight);
+  }, [camera, ctx]);
   
   const handlePan = useCallback((dx: number, dy: number) => {
     camera.setPosition(camera.x + dx, camera.y + dy);
@@ -304,13 +305,35 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handlePlayPause, incrementSpeed, decrementSpeed, toggleEventLog, handleFullscreen, handleResetCamera, handleCenterOnAgents]);
 
-  // Setup Canvas
+  // Setup Canvas - size to window
   useEffect(() => {
     if (canvasRef.current && !ctx) {
-      const context = setupCanvas('game-canvas', CANVAS_SIZE, CANVAS_SIZE);
-      setCtx(context);
+      const canvas = canvasRef.current;
+      const width = window.innerWidth;
+      const height = window.innerHeight;
+      canvas.width = width;
+      canvas.height = height;
+      
+      const context2d = canvas.getContext('2d');
+      if (context2d) {
+        setCtx({ canvas, ctx: context2d, width, height });
+      }
     }
-  }, [canvasRef]);
+    
+    // Handle window resize
+    const handleResize = () => {
+      if (canvasRef.current && ctx) {
+        const width = window.innerWidth;
+        const height = window.innerHeight;
+        canvasRef.current.width = width;
+        canvasRef.current.height = height;
+        setCtx({ ...ctx, width, height });
+      }
+    };
+    
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [canvasRef, ctx]);
 
   // Game Loop
   useEffect(() => {
@@ -401,15 +424,19 @@ export default function App() {
       if (ctx) {
         const { ctx: c, width, height } = ctx;
         
-        // Clear background
+        // Read LIVE camera values from ref (avoids stale closure bug)
+        const cam = camera.ref.current;
+        
+        // Clear with identity transform first
+        c.setTransform(1, 0, 0, 1, 0, 0);
         c.fillStyle = '#111827'; // Tailwind gray-900
         c.fillRect(0, 0, width, height);
 
         // Apply Camera Transform
         c.save();
         c.translate(width / 2, height / 2); // Center pivot
-        c.scale(camera.zoom, camera.zoom);
-        c.translate(-width / 2 + camera.x, -height / 2 + camera.y);
+        c.scale(cam.zoom, cam.zoom);
+        c.translate(-width / 2 + cam.x, -height / 2 + cam.y);
 
         if (layers.terrain) renderTerrain(world, ctx);
         if (layers.rivers) renderRivers(world, ctx);
@@ -424,17 +451,17 @@ export default function App() {
 
     animationFrameId = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(animationFrameId);
-  }, [ctx, isPlaying, speed, layers, camera, persistence]);
+  }, [ctx, isPlaying, speed, layers, camera.ref, persistence]);
 
   return (
     <div className="relative w-full h-full overflow-hidden bg-gray-950 text-white">
-      {/* Layer 0: Canvas (The World) */}
-      <div className="absolute inset-0 z-0 flex items-center justify-center">
+      {/* Layer 0: Canvas (The World) - NO CENTERING, fills viewport */}
+      <div className="absolute inset-0 z-0">
         <canvas 
           id="game-canvas" 
           ref={canvasRef}
           onClick={handleCanvasClick}
-          className="shadow-2xl border border-gray-800 rounded-xl cursor-crosshair"
+          className="block w-full h-full cursor-crosshair"
         />
       </div>
       
@@ -446,7 +473,7 @@ export default function App() {
             world={world}
             canvasRef={canvasRef}
             camera={camera}
-            canvasSize={{ width: CANVAS_SIZE, height: CANVAS_SIZE }}
+            canvasSize={{ width: ctx.width, height: ctx.height }}
           />
         )}
         
@@ -467,7 +494,7 @@ export default function App() {
           <Minimap
             world={world}
             camera={camera}
-            canvasSize={{ width: CANVAS_SIZE, height: CANVAS_SIZE }}
+            canvasSize={{ width: ctx?.width ?? window.innerWidth, height: ctx?.height ?? window.innerHeight }}
             onNavigate={handleMinimapNavigate}
             size={140}
           />

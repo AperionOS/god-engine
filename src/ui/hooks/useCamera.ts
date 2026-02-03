@@ -1,17 +1,29 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 
-export interface CameraState {
+export interface CameraValues {
   x: number;
   y: number;
   zoom: number;
+}
+
+export interface CameraState extends CameraValues {
   setPosition: (x: number, y: number) => void;
   setZoom: (zoom: number) => void;
+  /** Ref to current camera values - use in animation loops to avoid stale closures */
+  ref: React.MutableRefObject<CameraValues>;
 }
 
 export function useCamera(canvasRef: React.RefObject<HTMLCanvasElement | null>): CameraState {
-  const [camera, setCamera] = useState({ x: 0, y: 0, zoom: 1 });
+  const [camera, setCamera] = useState<CameraValues>({ x: 0, y: 0, zoom: 1 });
+  // Ref for animation loop to read live values (avoids stale closure bug)
+  const cameraRef = useRef<CameraValues>({ x: 0, y: 0, zoom: 1 });
   const isDragging = useRef(false);
   const lastPos = useRef({ x: 0, y: 0 });
+  
+  // Keep ref in sync with state
+  useEffect(() => {
+    cameraRef.current = camera;
+  }, [camera]);
 
   const handleWheel = useCallback((e: WheelEvent) => {
     e.preventDefault();
@@ -76,5 +88,5 @@ export function useCamera(canvasRef: React.RefObject<HTMLCanvasElement | null>):
     };
   }, [canvasRef, handleWheel, handleMouseDown, handleMouseMove, handleMouseUp]);
 
-  return { ...camera, setPosition, setZoom };
+  return { ...camera, setPosition, setZoom, ref: cameraRef };
 }
