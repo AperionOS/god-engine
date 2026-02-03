@@ -454,8 +454,8 @@ export default function App() {
   }, [ctx, isPlaying, speed, layers, camera.ref, persistence]);
 
   return (
-    <div className="relative w-full h-full overflow-hidden bg-gray-950 text-white">
-      {/* Layer 0: Canvas (The World) - NO CENTERING, fills viewport */}
+    <div className="fixed inset-0 overflow-hidden bg-gray-950 text-white">
+      {/* Layer 0: Canvas (The World) */}
       <div className="absolute inset-0 z-0">
         <canvas 
           id="game-canvas" 

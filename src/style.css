@@ -1,20 +1,14 @@
+@import "tailwindcss";
 @import "tw-animate-css";
-@plugin "tailwindcss-animate";
-@custom-variant dark (&:is(.dark *));
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
-/* NUCLEAR RESET - Override everything */
+/* Full viewport reset */
 html, body, #root {
-  width: 100vw !important;
-  height: 100vh !important;
-  margin: 0 !important;
-  padding: 0 !important;
-  overflow: hidden !important;
-  background: #030712 !important;
-  display: block !important;
+  width: 100vw;
+  height: 100vh;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background: #030712;
 }
 
 canvas {
