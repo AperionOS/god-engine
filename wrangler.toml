@@ -1,0 +1,11 @@
+name = "god-engine"
+compatibility_date = "2024-12-01"
+pages_build_output_dir = "dist"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "god-engine-db"
+database_id = "9db5a0a6-d53a-4713-8f89-382411f72cc2"
+
+[ai]
+binding = "AI"
