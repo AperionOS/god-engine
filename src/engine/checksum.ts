@@ -112,7 +112,7 @@ export function checksumVegetation(vegetation: VegetationMap): string {
  * Order-independent for multiple agents (sorted by x, then y)
  */
 export function checksumAgent(agent: Agent): string {
-  const data = `${agent.x.toFixed(3)},${agent.y.toFixed(3)},${agent.hunger.toFixed(3)},${agent.speed},${agent.senseRadius}`;
+  const data = `${agent.id},${agent.x.toFixed(3)},${agent.y.toFixed(3)},${agent.hunger.toFixed(3)},${agent.speed},${agent.senseRadius},${agent.state}`;
   return fnv1aHash(data);
 }
 
@@ -125,11 +125,8 @@ export function checksumAgent(agent: Agent): string {
 export function checksumAgents(agents: Agent[]): string {
   if (agents.length === 0) return fnv1aHash('agents:0');
   
-  // Sort agents by position for determinism
-  const sorted = [...agents].sort((a, b) => {
-    if (a.x !== b.x) return a.x - b.x;
-    return a.y - b.y;
-  });
+  // Sort agents by ID for determinism
+  const sorted = [...agents].sort((a, b) => a.id - b.id);
   
   const hashes = sorted.map(checksumAgent).join(':');
   return fnv1aHash(`agents:${agents.length}:${hashes}`);

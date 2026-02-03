@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { Agent } from '../src/engine/agent';
+import { SeededRNG } from '../src/engine/rng';
 import { generateHeightMap } from '../src/engine/height';
 import { calculateFlow } from '../src/engine/flow';
 import { calculateMoisture } from '../src/engine/moisture';
@@ -18,10 +19,12 @@ describe('Agent', () => {
 
     const agent1 = new Agent({ x: 32, y: 32 });
     const agent2 = new Agent({ x: 32, y: 32 });
+    const rng1 = new SeededRNG(111);
+    const rng2 = new SeededRNG(111);
 
     for (let i = 0; i < 10; i++) {
-      agent1.update(vegetation1);
-      agent2.update(vegetation2);
+      agent1.update(vegetation1, rng1);
+      agent2.update(vegetation2, rng2);
 
       expect(agent1.x).toBe(agent2.x);
       expect(agent1.y).toBe(agent2.y);
@@ -37,9 +40,10 @@ describe('Agent', () => {
     const vegetation = initializeVegetation(biomeMap);
 
     const agent = new Agent({ x: 0, y: 0 });
+    const rng = new SeededRNG(222);
 
     for (let i = 0; i < 100; i++) {
-      agent.update(vegetation);
+      agent.update(vegetation, rng);
 
       expect(agent.x).toBeGreaterThanOrEqual(0);
       expect(agent.x).toBeLessThan(64);
@@ -56,9 +60,10 @@ describe('Agent', () => {
     const vegetation = initializeVegetation(biomeMap);
 
     const agent = new Agent({ x: 32, y: 32 });
+    const rng = new SeededRNG(333);
     const initialVeg = vegetation.get(32, 32);
 
-    agent.update(vegetation);
+    agent.update(vegetation, rng);
 
     // Vegetation should have been consumed (or agent moved)
     expect(vegetation.get(32, 32)).toBeLessThanOrEqual(initialVeg);
@@ -77,8 +82,9 @@ describe('Agent', () => {
     }
 
     const agent = new Agent({ x: 32, y: 32, hunger: 0 });
+    const rng = new SeededRNG(444);
 
-    agent.update(vegetation);
+    agent.update(vegetation, rng);
 
     expect(agent.hunger).toBeGreaterThan(0);
   });

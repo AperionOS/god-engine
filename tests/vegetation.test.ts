@@ -50,8 +50,8 @@ describe('VegetationMap', () => {
     vegetation2.consume(10, 10, 0.5);
 
     // Update both
-    updateVegetation(vegetation1, biomeMap, moistureMap);
-    updateVegetation(vegetation2, biomeMap, moistureMap);
+    updateVegetation(vegetation1, biomeMap, moistureMap, 0);
+    updateVegetation(vegetation2, biomeMap, moistureMap, 0);
 
     expect(checksumVegetationLegacy(vegetation1)).toBe(checksumVegetationLegacy(vegetation2));
   });

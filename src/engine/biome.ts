@@ -1,15 +1,9 @@
 import { HeightMap } from './height';
 import { MoistureMap } from './moisture';
+import { WORLD_CONFIG } from './config';
+import { BiomeType } from './enums';
 
-export enum BiomeType {
-  OCEAN = 0,
-  BEACH = 1,
-  PLAINS = 2,
-  FOREST = 3,
-  DESERT = 4,
-  MOUNTAIN = 5,
-  SNOW = 6,
-}
+export { BiomeType };
 
 export const BIOME_COLORS: Record<BiomeType, string> = {
   [BiomeType.OCEAN]: '#1a5490',
@@ -62,23 +56,25 @@ export class BiomeMap {
 }
 
 function classifyBiome(height: number, moisture: number): BiomeType {
+  const { HEIGHT, MOISTURE } = WORLD_CONFIG;
+
   // Ocean
-  if (height < 0.3) return BiomeType.OCEAN;
+  if (height < HEIGHT.OCEAN_LEVEL) return BiomeType.OCEAN;
 
   // Beach
-  if (height < 0.35) return BiomeType.BEACH;
+  if (height < HEIGHT.BEACH_LEVEL) return BiomeType.BEACH;
 
   // Snow
-  if (height > 0.8) return BiomeType.SNOW;
+  if (height > HEIGHT.SNOW_LEVEL) return BiomeType.SNOW;
 
   // Mountain
-  if (height > 0.65) return BiomeType.MOUNTAIN;
+  if (height > HEIGHT.MOUNTAIN_LEVEL) return BiomeType.MOUNTAIN;
 
   // Desert (low moisture)
-  if (moisture < 0.3) return BiomeType.DESERT;
+  if (moisture < MOISTURE.DESERT_THRESHOLD) return BiomeType.DESERT;
 
   // Forest (high moisture)
-  if (moisture > 0.6) return BiomeType.FOREST;
+  if (moisture > MOISTURE.FOREST_THRESHOLD) return BiomeType.FOREST;
 
   // Plains (medium moisture)
   return BiomeType.PLAINS;

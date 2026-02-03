@@ -3,7 +3,10 @@ import { calculateFlow, FlowMap } from './flow';
 import { calculateMoisture, MoistureMap } from './moisture';
 import { generateBiomeMap, BiomeMap } from './biome';
 import { initializeVegetation, updateVegetation, VegetationMap } from './vegetation';
-import { Agent, AgentConfig } from './agent';
+import { Agent, AgentConfig, AgentState } from './agent';
+import { SeededRNG } from './rng';
+import { HistoryLog, EventType } from './history';
+import { BiomeType } from './enums';
 import {
   checksumHeightMap,
   checksumFlowMap,
@@ -17,6 +20,7 @@ export interface WorldConfig {
   width?: number;
   height?: number;
   seed: number;
+  initialPopulation?: number;
 }
 
 /**
@@ -39,6 +43,7 @@ export class World {
   readonly width: number;
   readonly height: number;
   readonly seed: number;
+  readonly initialPopulation: number;
 
   heightMap!: HeightMap;
   flowMap!: FlowMap;
@@ -46,6 +51,9 @@ export class World {
   biomeMap!: BiomeMap;
   vegetationMap!: VegetationMap;
   agents: Agent[] = [];
+  nextAgentId: number = 1;
+  rng!: SeededRNG;
+  history: HistoryLog = new HistoryLog();
 
   tickCount: number = 0;
 
@@ -53,10 +61,20 @@ export class World {
     this.width = config.width ?? 256;
     this.height = config.height ?? 256;
     this.seed = config.seed;
+    this.initialPopulation = config.initialPopulation ?? 10;
     this.generate();
   }
 
   private generate(): void {
+    // Initialize persistent RNG for simulation
+    this.rng = new SeededRNG(this.seed);
+    this.history.clear();
+    this.history.log({
+      tick: 0,
+      type: EventType.WORLD_GENERATE,
+      details: `Seed: ${this.seed}`,
+    });
+
     this.heightMap = generateHeightMap({
       width: this.width,
       height: this.height,
@@ -68,25 +86,88 @@ export class World {
     this.biomeMap = generateBiomeMap(this.heightMap, this.moistureMap);
     this.vegetationMap = initializeVegetation(this.biomeMap);
 
-    // Add a single agent in the center
-    this.agents = [
-      new Agent({
-        x: this.width / 2,
-        y: this.height / 2,
-      }),
-    ];
+    // Initial population spawning
+    this.nextAgentId = 1;
+    this.agents = [];
+
+    let attempts = 0;
+    while (this.agents.length < this.initialPopulation && attempts < 1000) {
+      const x = this.rng.range(0, this.width - 1);
+      const y = this.rng.range(0, this.height - 1);
+      
+      const biome = this.biomeMap.get(Math.floor(x), Math.floor(y));
+      if (biome !== BiomeType.OCEAN) {
+        this.agents.push(new Agent({
+          id: this.nextAgentId++,
+          x,
+          y,
+        }));
+      }
+      attempts++;
+    }
 
     this.tickCount = 0;
   }
 
   tick(): void {
-    updateVegetation(this.vegetationMap, this.biomeMap, this.moistureMap);
+    // GUARD: Strictly forbid Math.random() during simulation
+    const originalRandom = Math.random;
+    Math.random = () => {
+      throw new Error('Non-deterministic Math.random() called during simulation! Use World.rng instead.');
+    };
 
-    for (const agent of this.agents) {
-      agent.update(this.vegetationMap);
+    try {
+      updateVegetation(this.vegetationMap, this.biomeMap, this.moistureMap, this.tickCount);
+
+      // Sort agents by ID to ensure deterministic update order
+      this.agents.sort((a, b) => a.id - b.id);
+
+      // Filter out dead agents and process updates
+      const nextAgents: Agent[] = [];
+      
+      for (const agent of this.agents) {
+        agent.update(this.vegetationMap, this.rng);
+
+        if (agent.isDead()) {
+          // Return nutrients to soil
+          const x = Math.floor(agent.x);
+          const y = Math.floor(agent.y);
+          const currentVeg = this.vegetationMap.get(x, y);
+          this.vegetationMap.set(x, y, currentVeg + 0.5); // Carcass nutrients
+          
+          this.history.log({
+            tick: this.tickCount,
+            type: EventType.AGENT_DEATH,
+            x: agent.x,
+            y: agent.y,
+            details: 'Starvation',
+          });
+          continue; // Remove from list
+        }
+
+        // Handle reproduction
+        if (agent.state === AgentState.REPRODUCING) {
+          const offspring = agent.reproduce(this.nextAgentId++, this.rng);
+          nextAgents.push(offspring);
+          
+          this.history.log({
+            tick: this.tickCount,
+            type: EventType.AGENT_SPAWN,
+            x: offspring.x,
+            y: offspring.y,
+            details: `Parent: ${agent.id}`,
+          });
+        }
+
+        nextAgents.push(agent);
+      }
+
+      this.agents = nextAgents;
+      this.tickCount++;
+    } finally {
+      // Restore Math.random
+      Math.random = originalRandom;
     }
-
-    this.tickCount++;
   }
 
   regenerate(seed: number): void {

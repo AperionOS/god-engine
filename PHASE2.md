@@ -222,7 +222,7 @@ console.log(checksum.composite); // "a8x2k9q"
 **Purpose**: Catch accidental non-determinism
 
 **Detection**:
-- ✅ Math.random() usage
+- ✅ Math.random() usage (Runtime override throws Error)
 - ✅ Non-seeded RNG
 - ✅ Object iteration order issues
 - ✅ Floating point instability

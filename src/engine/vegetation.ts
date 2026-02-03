@@ -1,5 +1,7 @@
-import { BiomeMap, BiomeType } from './biome';
+import { BiomeMap } from './biome';
+import { BiomeType } from './enums';
 import { MoistureMap } from './moisture';
+import { WORLD_CONFIG } from './config';
 
 export class VegetationMap {
   readonly width: number;
@@ -31,26 +33,6 @@ export class VegetationMap {
   }
 }
 
-const BIOME_VEGETATION: Record<BiomeType, number> = {
-  [BiomeType.OCEAN]: 0,
-  [BiomeType.BEACH]: 0.1,
-  [BiomeType.PLAINS]: 0.5,
-  [BiomeType.FOREST]: 0.9,
-  [BiomeType.DESERT]: 0.05,
-  [BiomeType.MOUNTAIN]: 0.2,
-  [BiomeType.SNOW]: 0,
-};
-
-const BIOME_REGROWTH: Record<BiomeType, number> = {
-  [BiomeType.OCEAN]: 0,
-  [BiomeType.BEACH]: 0.001,
-  [BiomeType.PLAINS]: 0.005,
-  [BiomeType.FOREST]: 0.01,
-  [BiomeType.DESERT]: 0.0005,
-  [BiomeType.MOUNTAIN]: 0.002,
-  [BiomeType.SNOW]: 0,
-};
-
 export function initializeVegetation(biomeMap: BiomeMap): VegetationMap {
   const { width, height } = biomeMap;
   const vegetation = new VegetationMap(width, height);
@@ -58,7 +40,7 @@ export function initializeVegetation(biomeMap: BiomeMap): VegetationMap {
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
       const biome = biomeMap.get(x, y);
-      vegetation.set(x, y, BIOME_VEGETATION[biome]);
+      vegetation.set(x, y, WORLD_CONFIG.VEGETATION.MAX_DENSITY[biome]);
     }
   }
 
@@ -68,17 +50,27 @@ export function initializeVegetation(biomeMap: BiomeMap): VegetationMap {
 export function updateVegetation(
   vegetation: VegetationMap,
   biomeMap: BiomeMap,
-  moistureMap: MoistureMap
+  moistureMap: MoistureMap,
+  tick: number
 ): void {
   const { width, height } = vegetation;
+  
+  // OPTIMIZATION: Strided updates
+  // Only update 1/4th of the rows each tick
+  // This reduces per-tick load by 75% while maintaining deterministic growth
+  const stride = 4;
+  const startY = tick % stride;
 
-  for (let y = 0; y < height; y++) {
+  for (let y = startY; y < height; y += stride) {
     for (let x = 0; x < width; x++) {
       const biome = biomeMap.get(x, y);
       const moisture = moistureMap.get(x, y);
       const current = vegetation.get(x, y);
-      const maxVeg = BIOME_VEGETATION[biome];
-      const regrowth = BIOME_REGROWTH[biome] * (1 + moisture);
+      const maxVeg = WORLD_CONFIG.VEGETATION.MAX_DENSITY[biome];
+      
+      // Multiply growth by stride since we visit less often
+      const baseGrowth = WORLD_CONFIG.VEGETATION.GROWTH_RATE[biome];
+      const regrowth = baseGrowth * (1 + moisture) * stride;
 
       if (current < maxVeg) {
         vegetation.set(x, y, current + regrowth);

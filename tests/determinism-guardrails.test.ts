@@ -132,11 +132,11 @@ describe('Determinism Guardrails', () => {
 
       // Iterate agents in different orders
       for (const agent of world1.agents) {
-        agent.update(world1.vegetationMap);
+        agent.update(world1.vegetationMap, world1.rng);
       }
 
       for (let i = world2.agents.length - 1; i >= 0; i--) {
-        world2.agents[i].update(world2.vegetationMap);
+        world2.agents[i].update(world2.vegetationMap, world2.rng);
       }
 
       // Different iteration order shouldn't matter for single agent
