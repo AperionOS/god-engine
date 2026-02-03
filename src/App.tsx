@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { World } from './engine/world';
+import { HeightMap } from './engine/height';
 import { setupCanvas, CanvasContext } from './ui/canvas';
 import { renderTerrain } from './ui/renderers/terrain';
 import { renderRivers } from './ui/renderers/rivers';
@@ -10,9 +11,10 @@ import { AgentInspector } from './ui/components/AgentInspector';
 import { Minimap } from './ui/components/Minimap';
 import { CellTooltip } from './ui/components/CellTooltip';
 import { EventLog } from './ui/components/EventLog';
+import { LocationPicker } from './ui/components/LocationPicker';
 import { Agent } from './engine/agent';
 import { usePersistence } from './api';
-import { Activity, Users, Settings, Play, Pause, Cloud, CloudOff, Sparkles, RotateCcw, ScrollText } from 'lucide-react';
+import { Activity, Users, Settings, Play, Pause, Cloud, CloudOff, Sparkles, RotateCcw, ScrollText, Mountain, Globe } from 'lucide-react';
 import { ResponsiveLine } from '@nivo/line';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -22,6 +24,7 @@ import { Toaster, toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 import { EventType } from './engine/history';
 import { useUIStore } from './stores/uiStore';
+import { fetchTerrain, normalizeElevations, type LatLng } from './services/terrainLoader';
 
 // Initialize world singleton
 const WORLD_SIZE = 256;
@@ -52,6 +55,11 @@ export default function App() {
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
   const [history, setHistory] = useState<{ tick: number; population: number }[]>([]);
   
+  // Real terrain state
+  const [showLocationPicker, setShowLocationPicker] = useState(false);
+  const [isLoadingTerrain, setIsLoadingTerrain] = useState(false);
+  const [terrainLocation, setTerrainLocation] = useState<string | null>(null);
+  
   // Stats tracking
   const [stats, setStats] = useState({
     peakPopulation: 0,
@@ -68,6 +76,56 @@ export default function App() {
   const handleMinimapNavigate = useCallback((x: number, y: number) => {
     camera.setPosition(x, y);
   }, [camera]);
+  
+  // Load real terrain
+  const handleLoadRealTerrain = useCallback(async (location: LatLng, name: string) => {
+    setIsLoadingTerrain(true);
+    try {
+      const tile = await fetchTerrain(location, 12, WORLD_SIZE);
+      const normalizedElevations = normalizeElevations(tile);
+      
+      const heightMap = HeightMap.fromElevationData(
+        normalizedElevations,
+        tile.width,
+        tile.height,
+        {
+          locationName: name,
+          minElevation: tile.minElevation,
+          maxElevation: tile.maxElevation,
+          bounds: tile.bounds,
+        }
+      );
+      
+      // Reset state
+      setPlaying(false);
+      setTick(0);
+      setHistory([]);
+      setStats({ peakPopulation: 0, totalBirths: 0, totalDeaths: 0, extinctionTick: null });
+      setSelectedAgent(null);
+      persistence.reset();
+      lastSyncedEventCount.current = 0;
+      
+      // Load terrain into world
+      world.loadRealTerrain(heightMap);
+      
+      // Update window reference for E2E tests
+      if (typeof window !== 'undefined') {
+        (window as any).__GOD_ENGINE_WORLD__ = world;
+      }
+      
+      setTerrainLocation(name);
+      setShowLocationPicker(false);
+      toast.success(`Loaded terrain: ${name}`);
+      
+      // Start a new cloud run
+      await persistence.startRun(0);
+    } catch (error) {
+      console.error('Failed to load terrain:', error);
+      toast.error('Failed to load terrain. Try a different location.');
+    } finally {
+      setIsLoadingTerrain(false);
+    }
+  }, [persistence, setPlaying]);
 
   const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (!canvasRef.current || !ctx) return;
@@ -119,6 +177,7 @@ export default function App() {
     setHistory([]);
     setStats({ peakPopulation: 0, totalBirths: 0, totalDeaths: 0, extinctionTick: null });
     setSelectedAgent(null);
+    setTerrainLocation(null); // Clear real terrain
     persistence.reset();
     lastSyncedEventCount.current = 0;
     addToSeedHistory(seed);
@@ -466,30 +525,94 @@ export default function App() {
           </motion.div>
           <div className="flex-1">
             <h1 className="font-bold text-lg">God Engine</h1>
-            <p className="text-xs text-gray-400">Simulation Cockpit</p>
+            <p className="text-xs text-gray-400">
+              {terrainLocation ? (
+                <span className="flex items-center gap-1">
+                  <Globe size={12} className="text-green-400" />
+                  {terrainLocation}
+                </span>
+              ) : (
+                'Simulation Cockpit'
+              )}
+            </p>
           </div>
         </div>
 
-        {/* Seed Control */}
+        {/* Terrain Source */}
         <div className="space-y-2">
-          <h2 className="text-xs font-bold text-gray-500 uppercase tracking-wider">World Seed</h2>
-          <div className="flex gap-2">
-            <Input
-              type="number"
-              value={seed}
-              onChange={(e) => setSeed(parseInt(e.target.value) || 0)}
-              className="flex-1 bg-gray-800 border-gray-700 font-mono"
-            />
+          <h2 className="text-xs font-bold text-gray-500 uppercase tracking-wider">Terrain Source</h2>
+          
+          {/* Toggle between procedural and real terrain */}
+          <div className="grid grid-cols-2 gap-2">
             <Button
-              variant="outline"
-              size="icon"
-              onClick={handleRegenerate}
-              title="Regenerate World"
-              className="bg-gray-800 border-gray-700 hover:bg-gray-700"
+              variant={!terrainLocation ? "default" : "outline"}
+              size="sm"
+              onClick={() => {
+                if (terrainLocation) {
+                  handleRegenerate();
+                }
+              }}
+              className={cn(
+                "text-xs",
+                !terrainLocation 
+                  ? "bg-blue-600 hover:bg-blue-500" 
+                  : "bg-gray-800 border-gray-700 hover:bg-gray-700"
+              )}
             >
-              <RotateCcw size={18} />
+              <RotateCcw size={14} className="mr-1" />
+              Procedural
+            </Button>
+            <Button
+              variant={terrainLocation ? "default" : "outline"}
+              size="sm"
+              onClick={() => setShowLocationPicker(true)}
+              className={cn(
+                "text-xs",
+                terrainLocation 
+                  ? "bg-green-600 hover:bg-green-500" 
+                  : "bg-gray-800 border-gray-700 hover:bg-gray-700"
+              )}
+            >
+              <Mountain size={14} className="mr-1" />
+              Real Terrain
             </Button>
           </div>
+          
+          {/* Seed input (only for procedural) */}
+          {!terrainLocation && (
+            <div className="flex gap-2">
+              <Input
+                type="number"
+                value={seed}
+                onChange={(e) => setSeed(parseInt(e.target.value) || 0)}
+                className="flex-1 bg-gray-800 border-gray-700 font-mono text-sm"
+                placeholder="Seed"
+              />
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={handleRegenerate}
+                title="Regenerate World"
+                className="bg-gray-800 border-gray-700 hover:bg-gray-700"
+              >
+                <RotateCcw size={16} />
+              </Button>
+            </div>
+          )}
+          
+          {/* Terrain info (only for real terrain) */}
+          {terrainLocation && world.heightMap.realTerrainMetadata && (
+            <div className="text-xs text-gray-400 bg-gray-800 rounded p-2 border border-gray-700">
+              <div className="flex justify-between">
+                <span>Min elevation:</span>
+                <span className="font-mono">{world.heightMap.realTerrainMetadata.minElevation.toFixed(0)}m</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Max elevation:</span>
+                <span className="font-mono">{world.heightMap.realTerrainMetadata.maxElevation.toFixed(0)}m</span>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Inspector */}
@@ -659,6 +782,17 @@ export default function App() {
           },
         }}
       />
+      
+      {/* Location Picker Modal */}
+      <AnimatePresence>
+        {showLocationPicker && (
+          <LocationPicker
+            onSelect={handleLoadRealTerrain}
+            onCancel={() => setShowLocationPicker(false)}
+            isLoading={isLoadingTerrain}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

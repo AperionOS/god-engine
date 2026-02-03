@@ -13,6 +13,19 @@ export class HeightMap {
   readonly width: number;
   readonly height: number;
   readonly data: Float32Array;
+  
+  // Optional metadata for real terrain
+  realTerrainMetadata?: {
+    locationName: string;
+    minElevation: number;
+    maxElevation: number;
+    bounds: {
+      north: number;
+      south: number;
+      east: number;
+      west: number;
+    };
+  };
 
   constructor(width: number, height: number) {
     this.width = width;
@@ -44,6 +57,29 @@ export class HeightMap {
         this.data[i] = (this.data[i] - min) / range;
       }
     }
+  }
+  
+  /**
+   * Create HeightMap from pre-computed elevation data (e.g., real terrain)
+   */
+  static fromElevationData(
+    elevations: Float32Array,
+    width: number,
+    height: number,
+    metadata?: HeightMap['realTerrainMetadata']
+  ): HeightMap {
+    const heightMap = new HeightMap(width, height);
+    
+    // Copy elevations (already normalized 0-1)
+    for (let i = 0; i < elevations.length && i < heightMap.data.length; i++) {
+      heightMap.data[i] = elevations[i];
+    }
+    
+    if (metadata) {
+      heightMap.realTerrainMetadata = metadata;
+    }
+    
+    return heightMap;
   }
 }
 

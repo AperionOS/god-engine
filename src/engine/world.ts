@@ -21,6 +21,8 @@ export interface WorldConfig {
   height?: number;
   seed: number;
   initialPopulation?: number;
+  /** Pre-generated height map (for real terrain) */
+  heightMap?: HeightMap;
 }
 
 /**
@@ -44,6 +46,9 @@ export class World {
   readonly height: number;
   readonly seed: number;
   readonly initialPopulation: number;
+  
+  /** True if using real terrain data */
+  readonly isRealTerrain: boolean;
 
   heightMap!: HeightMap;
   flowMap!: FlowMap;
@@ -56,12 +61,16 @@ export class World {
   history: HistoryLog = new HistoryLog();
 
   tickCount: number = 0;
+  
+  private _externalHeightMap?: HeightMap;
 
   constructor(config: WorldConfig) {
     this.width = config.width ?? 256;
     this.height = config.height ?? 256;
     this.seed = config.seed;
     this.initialPopulation = config.initialPopulation ?? 10;
+    this._externalHeightMap = config.heightMap;
+    this.isRealTerrain = !!config.heightMap;
     this.generate();
   }
 
@@ -69,17 +78,27 @@ export class World {
     // Initialize persistent RNG for simulation
     this.rng = new SeededRNG(this.seed);
     this.history.clear();
+    
+    const terrainType = this._externalHeightMap?.realTerrainMetadata?.locationName 
+      ? `Real Terrain: ${this._externalHeightMap.realTerrainMetadata.locationName}`
+      : `Procedural Seed: ${this.seed}`;
+    
     this.history.log({
       tick: 0,
       type: EventType.WORLD_GENERATE,
-      details: `Seed: ${this.seed}`,
+      details: terrainType,
     });
 
-    this.heightMap = generateHeightMap({
-      width: this.width,
-      height: this.height,
-      seed: this.seed,
-    });
+    // Use external height map if provided, otherwise generate procedurally
+    if (this._externalHeightMap) {
+      this.heightMap = this._externalHeightMap;
+    } else {
+      this.heightMap = generateHeightMap({
+        width: this.width,
+        height: this.height,
+        seed: this.seed,
+      });
+    }
 
     this.flowMap = calculateFlow(this.heightMap);
     this.moistureMap = calculateMoisture(this.heightMap, this.flowMap);
@@ -172,6 +191,17 @@ export class World {
 
   regenerate(seed: number): void {
     (this as { seed: number }).seed = seed;
+    this._externalHeightMap = undefined; // Clear real terrain on regenerate
+    (this as { isRealTerrain: boolean }).isRealTerrain = false;
+    this.generate();
+  }
+  
+  /**
+   * Load real terrain data and regenerate the world
+   */
+  loadRealTerrain(heightMap: HeightMap): void {
+    this._externalHeightMap = heightMap;
+    (this as { isRealTerrain: boolean }).isRealTerrain = true;
     this.generate();
   }
 
