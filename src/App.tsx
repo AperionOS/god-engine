@@ -477,8 +477,8 @@ export default function App() {
           />
         )}
         
-        {/* Camera Controls (left center) */}
-        <div className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-auto">
+        {/* Camera Controls (left side, above minimap) */}
+        <div className="absolute left-4 bottom-44 pointer-events-auto">
           <CameraControls
             zoom={camera.zoom}
             onZoomIn={handleZoomIn}
@@ -489,8 +489,8 @@ export default function App() {
           />
         </div>
         
-        {/* Minimap (bottom-left) */}
-        <div className="absolute bottom-20 left-4 pointer-events-auto">
+        {/* Minimap (bottom-left, below camera controls) */}
+        <div className="absolute bottom-4 left-4 pointer-events-auto">
           <Minimap
             world={world}
             camera={camera}

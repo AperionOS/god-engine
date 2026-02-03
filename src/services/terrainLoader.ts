@@ -115,8 +115,12 @@ export async function fetchTerrain(
   // Get tile coordinates
   const { x, y } = latLngToTile(center.lat, center.lng, zoom);
   
-  // AWS Terrain Tiles URL (Terrarium format)
-  const url = `https://s3.amazonaws.com/elevation-tiles-prod/terrarium/${zoom}/${x}/${y}.png`;
+  // Use our Cloudflare proxy to avoid CORS issues
+  // Falls back to direct AWS URL for local development
+  const isProduction = typeof window !== 'undefined' && window.location.hostname !== 'localhost';
+  const url = isProduction 
+    ? `/api/terrain?z=${zoom}&x=${x}&y=${y}`
+    : `https://s3.amazonaws.com/elevation-tiles-prod/terrarium/${zoom}/${x}/${y}.png`;
   
   // Load and decode
   const imageData = await loadImageData(url);
