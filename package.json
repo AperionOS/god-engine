@@ -8,10 +8,13 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "test": "vitest",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
     "deploy": "pnpm build && wrangler pages deploy dist --project-name god-engine --branch main"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260203.0",
+    "@playwright/test": "^1.58.1",
     "@tailwindcss/postcss": "^4.1.18",
     "@types/react": "^19.2.10",
     "@types/react-dom": "^19.2.3",

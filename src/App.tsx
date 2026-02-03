@@ -23,6 +23,11 @@ const DEFAULT_SEED = 12345;
 const CANVAS_SIZE = 800;
 let world = new World({ width: WORLD_SIZE, height: WORLD_SIZE, seed: DEFAULT_SEED });
 
+// Expose world for E2E testing (determinism verification)
+if (typeof window !== 'undefined') {
+  (window as any).__GOD_ENGINE_WORLD__ = world;
+}
+
 export default function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const camera = useCamera(canvasRef);
@@ -102,6 +107,10 @@ export default function App() {
   const handleRegenerate = useCallback(async () => {
     setIsPlaying(false);
     world = new World({ width: WORLD_SIZE, height: WORLD_SIZE, seed });
+    // Update window reference for E2E tests
+    if (typeof window !== 'undefined') {
+      (window as any).__GOD_ENGINE_WORLD__ = world;
+    }
     setTick(0);
     setHistory([]);
     setStats({ peakPopulation: 0, totalBirths: 0, totalDeaths: 0, extinctionTick: null });
