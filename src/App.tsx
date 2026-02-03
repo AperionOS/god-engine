@@ -9,6 +9,7 @@ import { useCamera } from './ui/hooks/useCamera';
 import { AgentInspector } from './ui/components/AgentInspector';
 import { Agent } from './engine/agent';
 import { Activity, Users, Settings, Play, Pause, FastForward, ZoomIn } from 'lucide-react';
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
@@ -30,6 +31,7 @@ export default function App() {
     agents: true,
   });
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
+  const [history, setHistory] = useState<{ tick: number; population: number }[]>([]);
 
   const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (!canvasRef.current || !ctx) return;
@@ -94,6 +96,17 @@ export default function App() {
         while (accumulator >= fixedDelta) {
           world.tick();
           setTick(world.tickCount); // Trigger React re-render
+          
+          // Update Graph every 60 ticks (approx 1 sec)
+          if (world.tickCount % 60 === 0) {
+            setHistory(prev => {
+              const next = [...prev, { tick: world.tickCount, population: world.agents.length }];
+              // Keep last 50 points
+              if (next.length > 50) return next.slice(next.length - 50);
+              return next;
+            });
+          }
+
           accumulator -= fixedDelta;
         }
       }
@@ -202,6 +215,29 @@ export default function App() {
               <div className="text-2xl font-mono font-bold text-blue-400">
                 {tick}
               </div>
+            </div>
+
+            {/* Population Graph */}
+            <div className="h-32 bg-gray-800 rounded-lg p-2 border border-gray-700">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={history}>
+                  <XAxis dataKey="tick" hide />
+                  <YAxis hide domain={['auto', 'auto']} />
+                  <Tooltip 
+                    contentStyle={{ backgroundColor: '#1f2937', borderColor: '#374151', color: '#fff' }}
+                    itemStyle={{ color: '#60a5fa' }}
+                    labelStyle={{ display: 'none' }}
+                  />
+                  <Line 
+                    type="monotone" 
+                    dataKey="population" 
+                    stroke="#3b82f6" 
+                    strokeWidth={2} 
+                    dot={false}
+                    isAnimationActive={false}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
             </div>
           </div>
         )}
