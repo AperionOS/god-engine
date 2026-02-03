@@ -29,4 +29,14 @@ export class SeededRNG {
     cloned.state = this.state;
     return cloned;
   }
+
+  // Get current state for serialization
+  getState(): number {
+    return this.state;
+  }
+
+  // Restore state for deserialization
+  setState(state: number): void {
+    this.state = state >>> 0;
+  }
 }

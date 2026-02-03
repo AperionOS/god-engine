@@ -7,5 +7,13 @@ binding = "DB"
 database_name = "god-engine-db"
 database_id = "9db5a0a6-d53a-4713-8f89-382411f72cc2"
 
+[[r2_buckets]]
+binding = "MAPS_BUCKET"
+bucket_name = "god-engine-maps"
+
+[[kv_namespaces]]
+binding = "CACHE"
+id = "4770c6a9fec24f5bba607fcac0949028"
+
 [ai]
 binding = "AI"

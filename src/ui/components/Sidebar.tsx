@@ -3,7 +3,7 @@ import { cn } from '@/lib/utils';
 import { 
   Activity, Users, Skull, TrendingUp, Clock,
   ChevronLeft, ChevronRight, Mountain, Globe, RotateCcw, Sparkles,
-  Cloud, CloudOff, Eye, EyeOff, Layers
+  Cloud, CloudOff, Eye, EyeOff, Layers, Save, FolderOpen
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -61,6 +61,11 @@ interface SidebarProps {
   lore?: string;
   isGeneratingLore?: boolean;
   
+  // Map persistence
+  onSaveMap?: () => void;
+  onOpenMyMaps?: () => void;
+  isSavingMap?: boolean;
+  
   // UI
   isCollapsed: boolean;
   onToggleCollapse: () => void;
@@ -111,6 +116,9 @@ export function Sidebar({
   onGenerateLore,
   lore,
   isGeneratingLore,
+  onSaveMap,
+  onOpenMyMaps,
+  isSavingMap,
   isCollapsed,
   onToggleCollapse,
 }: SidebarProps) {
@@ -381,6 +389,44 @@ export function Sidebar({
                       {lore}
                     </motion.div>
                   )}
+                </div>
+              </>
+            )}
+
+            {/* Map Persistence */}
+            {(onSaveMap || onOpenMyMaps) && (
+              <>
+                <Separator />
+                <div className="space-y-2">
+                  <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-2">
+                    <Cloud className="h-3 w-3" />
+                    Cloud Storage
+                  </h3>
+                  <div className="grid grid-cols-2 gap-2">
+                    {onSaveMap && (
+                      <Button
+                        variant="default"
+                        size="sm"
+                        onClick={onSaveMap}
+                        disabled={isSavingMap}
+                        className="text-xs h-8 bg-blue-600 hover:bg-blue-500"
+                      >
+                        <Save className="h-3 w-3 mr-1.5" />
+                        {isSavingMap ? 'Saving...' : 'Save Map'}
+                      </Button>
+                    )}
+                    {onOpenMyMaps && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={onOpenMyMaps}
+                        className="text-xs h-8"
+                      >
+                        <FolderOpen className="h-3 w-3 mr-1.5" />
+                        My Maps
+                      </Button>
+                    )}
+                  </div>
                 </div>
               </>
             )}

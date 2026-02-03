@@ -15,6 +15,8 @@ import { ControlBar } from './ui/components/ControlBar';
 import { Sidebar } from './ui/components/Sidebar';
 import { CameraControls } from './ui/components/CameraControls';
 import { EventLogPanel, type WorldEvent } from './ui/components/EventLogPanel';
+import { SaveMapDialog } from './ui/components/SaveMapDialog';
+import { MyMapsPanel } from './ui/components/MyMapsPanel';
 import { Agent } from './engine/agent';
 import { usePersistence } from './api';
 import { Toaster, toast } from 'sonner';
@@ -22,6 +24,8 @@ import { AnimatePresence } from 'framer-motion';
 import { EventType } from './engine/history';
 import { useUIStore } from './stores/uiStore';
 import { fetchTerrain, normalizeElevations, type LatLng } from './services/terrainLoader';
+import { saveMap, loadMap } from './services/mapPersistence';
+import { deserializeWorld } from './engine/serialize';
 
 // Initialize world singleton
 const WORLD_SIZE = 256;
@@ -58,6 +62,11 @@ export default function App() {
   const [showLocationPicker, setShowLocationPicker] = useState(false);
   const [isLoadingTerrain, setIsLoadingTerrain] = useState(false);
   const [terrainLocation, setTerrainLocation] = useState<string | null>(null);
+  
+  // Map persistence state
+  const [showSaveDialog, setShowSaveDialog] = useState(false);
+  const [showMyMaps, setShowMyMaps] = useState(false);
+  const [isSavingMap, setIsSavingMap] = useState(false);
   
   // Stats tracking
   const [stats, setStats] = useState({
@@ -125,6 +134,62 @@ export default function App() {
       setIsLoadingTerrain(false);
     }
   }, [persistence, setPlaying]);
+
+  // Save current world to cloud
+  const handleSaveMap = useCallback(async (name: string) => {
+    setIsSavingMap(true);
+    try {
+      await saveMap(world, {
+        name,
+        locationName: terrainLocation || undefined,
+      });
+      toast.success(`Map "${name}" saved successfully!`);
+    } catch (error) {
+      console.error('Failed to save map:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to save map');
+      throw error;
+    } finally {
+      setIsSavingMap(false);
+    }
+  }, [terrainLocation]);
+
+  // Load a saved map from cloud
+  const handleLoadMap = useCallback(async (mapId: string) => {
+    setIsLoadingTerrain(true);
+    try {
+      const { meta, world: loadedWorld } = await loadMap(mapId);
+      
+      // Replace the global world instance
+      world = loadedWorld;
+      
+      // Update window reference for E2E tests
+      if (typeof window !== 'undefined') {
+        (window as any).__GOD_ENGINE_WORLD__ = world;
+      }
+      
+      // Reset UI state
+      setPlaying(false);
+      setTick(loadedWorld.tickCount);
+      setHistory([{ tick: loadedWorld.tickCount, population: loadedWorld.agents.length }]);
+      setStats({
+        peakPopulation: loadedWorld.agents.length,
+        totalBirths: 0,
+        totalDeaths: 0,
+        extinctionTick: null,
+      });
+      setSelectedAgent(null);
+      setTerrainLocation(meta.locationName);
+      setSeed(meta.seed);
+      
+      toast.success(`Loaded map: ${meta.name}`);
+    } catch (error) {
+      console.error('Failed to load map:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to load map');
+      throw error;
+    } finally {
+      setIsLoadingTerrain(false);
+    }
+  }, [setPlaying, setSeed]);
 
   const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (!canvasRef.current || !ctx) return;
@@ -552,6 +617,9 @@ export default function App() {
           onGenerateLore={persistence.runId ? handleGenerateLore : undefined}
           lore={persistence.lore || undefined}
           isGeneratingLore={persistence.isSaving}
+          onSaveMap={() => setShowSaveDialog(true)}
+          onOpenMyMaps={() => setShowMyMaps(true)}
+          isSavingMap={isSavingMap}
           isCollapsed={sidebarCollapsed}
           onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
         />
@@ -578,6 +646,21 @@ export default function App() {
           />
         )}
       </AnimatePresence>
+      
+      {/* Save Map Dialog */}
+      <SaveMapDialog
+        isOpen={showSaveDialog}
+        onClose={() => setShowSaveDialog(false)}
+        onSave={handleSaveMap}
+        locationName={terrainLocation || undefined}
+      />
+      
+      {/* My Maps Panel */}
+      <MyMapsPanel
+        isOpen={showMyMaps}
+        onClose={() => setShowMyMaps(false)}
+        onLoadMap={handleLoadMap}
+      />
     </div>
   );
 }
