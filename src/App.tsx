@@ -7,17 +7,20 @@ import { renderVegetation } from './ui/renderers/vegetation';
 import { renderAgents } from './ui/renderers/agent';
 import { useCamera } from './ui/hooks/useCamera';
 import { AgentInspector } from './ui/components/AgentInspector';
+import { Minimap } from './ui/components/Minimap';
+import { CellTooltip } from './ui/components/CellTooltip';
+import { EventLog } from './ui/components/EventLog';
 import { Agent } from './engine/agent';
 import { usePersistence } from './api';
-import { Activity, Users, Settings, Play, Pause, Cloud, CloudOff, Sparkles, RotateCcw } from 'lucide-react';
+import { Activity, Users, Settings, Play, Pause, Cloud, CloudOff, Sparkles, RotateCcw, ScrollText } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { clsx } from 'clsx';
-import { twMerge } from 'tailwind-merge';
 import { EventType } from './engine/history';
 
 // Initialize world singleton
 const WORLD_SIZE = 256;
 const DEFAULT_SEED = 12345;
+const CANVAS_SIZE = 800;
 let world = new World({ width: WORLD_SIZE, height: WORLD_SIZE, seed: DEFAULT_SEED });
 
 export default function App() {
@@ -45,9 +48,17 @@ export default function App() {
     extinctionTick: null as number | null,
   });
   
+  // UI state
+  const [showEventLog, setShowEventLog] = useState(false);
+  
   // Persistence
   const persistence = usePersistence({ seed, enabled: true });
   const lastSyncedEventCount = useRef(0);
+  
+  // Camera navigation for minimap
+  const handleMinimapNavigate = useCallback((x: number, y: number) => {
+    camera.setPosition(x, y);
+  }, [camera]);
 
   const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (!canvasRef.current || !ctx) return;
@@ -124,10 +135,42 @@ export default function App() {
     });
   }, [persistence, stats]);
 
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignore if typing in input
+      if (e.target instanceof HTMLInputElement) return;
+      
+      switch (e.code) {
+        case 'Space':
+          e.preventDefault();
+          handlePlayPause();
+          break;
+        case 'Equal':
+        case 'NumpadAdd':
+          e.preventDefault();
+          setSpeed(s => Math.min(s + 1, 10));
+          break;
+        case 'Minus':
+        case 'NumpadSubtract':
+          e.preventDefault();
+          setSpeed(s => Math.max(s - 1, 1));
+          break;
+        case 'KeyL':
+          e.preventDefault();
+          setShowEventLog(v => !v);
+          break;
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handlePlayPause]);
+
   // Setup Canvas
   useEffect(() => {
     if (canvasRef.current && !ctx) {
-      const context = setupCanvas('game-canvas', 800, 800);
+      const context = setupCanvas('game-canvas', CANVAS_SIZE, CANVAS_SIZE);
       setCtx(context);
     }
   }, [canvasRef]);
@@ -231,31 +274,78 @@ export default function App() {
           className="shadow-2xl border border-gray-800 rounded-lg cursor-crosshair"
         />
         
+        {/* Cell Tooltip */}
+        {ctx && (
+          <CellTooltip
+            world={world}
+            canvasRef={canvasRef}
+            camera={camera}
+            canvasSize={{ width: CANVAS_SIZE, height: CANVAS_SIZE }}
+          />
+        )}
+        
+        {/* Minimap (bottom-left) */}
+        <div className="absolute bottom-6 left-6">
+          <Minimap
+            world={world}
+            camera={camera}
+            canvasSize={{ width: CANVAS_SIZE, height: CANVAS_SIZE }}
+            onNavigate={handleMinimapNavigate}
+            size={140}
+          />
+        </div>
+        
+        {/* Event Log Panel (top-left, toggleable) */}
+        {showEventLog && (
+          <div className="absolute top-6 left-6 w-72 h-80 bg-gray-900/95 backdrop-blur border border-gray-700 rounded-lg p-3 shadow-xl">
+            <EventLog events={world.history.events} currentTick={tick} maxEvents={100} />
+          </div>
+        )}
+        
         {/* Overlay Controls */}
         <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-4 bg-gray-900/80 backdrop-blur px-6 py-3 rounded-full border border-gray-700 shadow-xl">
           <button 
             onClick={handlePlayPause}
             className="p-2 hover:bg-white/10 rounded-full transition-colors"
+            title="Play/Pause (Space)"
           >
             {isPlaying ? <Pause size={24} /> : <Play size={24} />}
           </button>
           
           <div className="h-6 w-px bg-gray-700" />
           
-          <button 
-            onClick={() => setSpeed(1)}
-            className={clsx("px-3 py-1 rounded text-sm font-medium transition-colors", speed === 1 ? "bg-blue-600 text-white" : "hover:bg-white/10 text-gray-400")}
-          >
-            1x
-          </button>
-          <button 
-            onClick={() => setSpeed(5)}
-            className={clsx("px-3 py-1 rounded text-sm font-medium transition-colors", speed === 5 ? "bg-blue-600 text-white" : "hover:bg-white/10 text-gray-400")}
-          >
-            5x
-          </button>
+          {/* Speed control with current speed display */}
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={() => setSpeed(s => Math.max(1, s - 1))}
+              className="px-2 py-1 rounded text-sm font-medium hover:bg-white/10 text-gray-400"
+              title="Slower (-)"
+            >
+              −
+            </button>
+            <span className="w-8 text-center text-sm font-mono">{speed}x</span>
+            <button 
+              onClick={() => setSpeed(s => Math.min(10, s + 1))}
+              className="px-2 py-1 rounded text-sm font-medium hover:bg-white/10 text-gray-400"
+              title="Faster (+)"
+            >
+              +
+            </button>
+          </div>
           
           <div className="h-6 w-px bg-gray-700" />
+          
+          {/* Toggle event log */}
+          <button
+            onClick={() => setShowEventLog(v => !v)}
+            className={clsx(
+              "p-2 rounded-full transition-colors",
+              showEventLog ? "bg-blue-600 text-white" : "hover:bg-white/10 text-gray-400"
+            )}
+            title="Event Log (L)"
+          >
+            <ScrollText size={18} />
+          </button>
           
           {/* Cloud sync indicator */}
           <div className="flex items-center gap-2 text-sm">
@@ -268,6 +358,11 @@ export default function App() {
               <span className="text-gray-400 text-xs">{persistence.eventsSaved}</span>
             )}
           </div>
+        </div>
+        
+        {/* Keyboard shortcuts hint */}
+        <div className="absolute top-6 right-6 text-xs text-gray-500 bg-gray-900/60 px-2 py-1 rounded">
+          Space: Play · +/-: Speed · L: Log
         </div>
       </div>
 

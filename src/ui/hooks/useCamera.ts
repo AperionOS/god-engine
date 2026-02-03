@@ -4,10 +4,11 @@ export interface CameraState {
   x: number;
   y: number;
   zoom: number;
+  setPosition: (x: number, y: number) => void;
 }
 
-export function useCamera(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
-  const [camera, setCamera] = useState<CameraState>({ x: 0, y: 0, zoom: 1 });
+export function useCamera(canvasRef: React.RefObject<HTMLCanvasElement | null>): CameraState {
+  const [camera, setCamera] = useState({ x: 0, y: 0, zoom: 1 });
   const isDragging = useRef(false);
   const lastPos = useRef({ x: 0, y: 0 });
 
@@ -48,6 +49,10 @@ export function useCamera(canvasRef: React.RefObject<HTMLCanvasElement | null>) 
   const handleMouseUp = useCallback(() => {
     isDragging.current = false;
   }, []);
+  
+  const setPosition = useCallback((x: number, y: number) => {
+    setCamera(prev => ({ ...prev, x, y }));
+  }, []);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -66,5 +71,5 @@ export function useCamera(canvasRef: React.RefObject<HTMLCanvasElement | null>) 
     };
   }, [canvasRef, handleWheel, handleMouseDown, handleMouseMove, handleMouseUp]);
 
-  return camera;
+  return { ...camera, setPosition };
 }
