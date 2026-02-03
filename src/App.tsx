@@ -203,6 +203,11 @@ export default function App() {
     let animationFrameId: number;
     let lastTime = performance.now();
     let accumulator = 0;
+    
+    // Track stats incrementally instead of filtering every tick
+    let birthCount = 0;
+    let deathCount = 0;
+    let lastEventIndex = 0;
 
     const loop = (currentTime: number) => {
       const deltaTime = currentTime - lastTime;
@@ -213,27 +218,38 @@ export default function App() {
         const fixedDelta = 16; // 60 ticks/sec
 
         while (accumulator >= fixedDelta) {
-          const prevAgentCount = world.agents.length;
           world.tick();
-          setTick(world.tickCount); // Trigger React re-render
           
-          // Track stats
-          const currentPop = world.agents.length;
-          setStats(prev => {
-            const births = world.history.events.filter(e => e.type === EventType.AGENT_SPAWN).length;
-            const deaths = world.history.events.filter(e => e.type === EventType.AGENT_DEATH).length;
-            const newPeak = Math.max(prev.peakPopulation, currentPop);
-            const extinction = currentPop === 0 && prev.extinctionTick === null 
-              ? world.tickCount 
-              : prev.extinctionTick;
-            
-            return {
-              peakPopulation: newPeak,
-              totalBirths: births,
-              totalDeaths: deaths,
-              extinctionTick: extinction,
-            };
-          });
+          // Process only new events (incremental)
+          const events = world.history.events;
+          for (let i = lastEventIndex; i < events.length; i++) {
+            if (events[i].type === EventType.AGENT_SPAWN) birthCount++;
+            else if (events[i].type === EventType.AGENT_DEATH) deathCount++;
+          }
+          lastEventIndex = events.length;
+          
+          // Update tick less frequently to reduce React overhead
+          if (world.tickCount % 3 === 0) {
+            setTick(world.tickCount);
+          }
+          
+          // Track stats every 10 ticks instead of every tick
+          if (world.tickCount % 10 === 0) {
+            const currentPop = world.agents.length;
+            setStats(prev => {
+              const newPeak = Math.max(prev.peakPopulation, currentPop);
+              const extinction = currentPop === 0 && prev.extinctionTick === null 
+                ? world.tickCount 
+                : prev.extinctionTick;
+              
+              return {
+                peakPopulation: newPeak,
+                totalBirths: birthCount,
+                totalDeaths: deathCount,
+                extinctionTick: extinction,
+              };
+            });
+          }
           
           // Update Graph every 60 ticks (approx 1 sec)
           if (world.tickCount % 60 === 0) {
@@ -522,38 +538,44 @@ export default function App() {
 
             {/* Population Graph */}
             <div className="h-32 bg-gray-800 rounded-lg p-2 border border-gray-700">
-              <ResponsiveLine
-                data={[{
-                  id: 'population',
-                  data: history.map(h => ({ x: h.tick, y: h.population }))
-                }]}
-                colors={['#3b82f6']}
-                enablePoints={false}
-                enableGridX={false}
-                enableGridY={false}
-                axisBottom={null}
-                axisLeft={null}
-                axisTop={null}
-                axisRight={null}
-                enableArea={true}
-                areaOpacity={0.15}
-                curve="monotoneX"
-                animate={false}
-                isInteractive={true}
-                useMesh={true}
-                margin={{ top: 5, right: 5, bottom: 5, left: 5 }}
-                theme={{
-                  tooltip: {
-                    container: {
-                      background: '#1f2937',
-                      color: '#fff',
-                      fontSize: 12,
-                      borderRadius: 4,
-                      boxShadow: '0 4px 6px rgba(0, 0, 0, 0.3)',
+              {history.length >= 2 ? (
+                <ResponsiveLine
+                  data={[{
+                    id: 'population',
+                    data: history.map(h => ({ x: h.tick, y: h.population }))
+                  }]}
+                  colors={['#3b82f6']}
+                  enablePoints={false}
+                  enableGridX={false}
+                  enableGridY={false}
+                  axisBottom={null}
+                  axisLeft={null}
+                  axisTop={null}
+                  axisRight={null}
+                  enableArea={true}
+                  areaOpacity={0.15}
+                  curve="monotoneX"
+                  animate={false}
+                  isInteractive={true}
+                  useMesh={true}
+                  margin={{ top: 5, right: 5, bottom: 5, left: 5 }}
+                  theme={{
+                    tooltip: {
+                      container: {
+                        background: '#1f2937',
+                        color: '#fff',
+                        fontSize: 12,
+                        borderRadius: 4,
+                        boxShadow: '0 4px 6px rgba(0, 0, 0, 0.3)',
+                      },
                     },
-                  },
-                }}
-              />
+                  }}
+                />
+              ) : (
+                <div className="h-full flex items-center justify-center text-gray-500 text-xs">
+                  Waiting for data...
+                </div>
+              )}
             </div>
             
             {/* Stats Summary */}
