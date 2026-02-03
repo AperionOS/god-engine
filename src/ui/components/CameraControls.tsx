@@ -1,4 +1,3 @@
-import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { 
   ZoomIn, ZoomOut, Maximize2, Target, Move, 
@@ -39,15 +38,10 @@ export function CameraControls({
   
   return (
     <TooltipProvider delayDuration={300}>
-      <motion.div 
-        className={cn(
-          "flex flex-col gap-1 bg-gray-900/90 backdrop-blur-xl p-1.5 rounded-xl border border-gray-700/50 shadow-2xl",
-          className
-        )}
-        initial={{ x: -20, opacity: 0 }}
-        animate={{ x: 0, opacity: 1 }}
-        transition={{ duration: 0.3, delay: 0.2 }}
-      >
+      <div className={cn(
+        "flex flex-col gap-1 bg-gray-900/90 backdrop-blur-xl p-1.5 rounded-xl border border-gray-700/50 shadow-2xl",
+        className
+      )}>
         {/* Zoom In */}
         <Tooltip>
           <TooltipTrigger asChild>
@@ -62,20 +56,15 @@ export function CameraControls({
             </Button>
           </TooltipTrigger>
           <TooltipContent side="right">
-            <p>Zoom In <kbd className="ml-1 px-1.5 py-0.5 bg-gray-700 rounded text-[10px]">+</kbd></p>
+            <p>Zoom In</p>
           </TooltipContent>
         </Tooltip>
 
         {/* Zoom Display */}
         <div className="px-1 py-0.5 text-center">
-          <motion.span 
-            className="text-[10px] font-mono text-gray-400"
-            key={zoomPercent}
-            initial={{ scale: 0.8 }}
-            animate={{ scale: 1 }}
-          >
+          <span className="text-[10px] font-mono text-gray-400">
             {zoomPercent}%
-          </motion.span>
+          </span>
         </div>
 
         {/* Zoom Out */}
@@ -92,7 +81,7 @@ export function CameraControls({
             </Button>
           </TooltipTrigger>
           <TooltipContent side="right">
-            <p>Zoom Out <kbd className="ml-1 px-1.5 py-0.5 bg-gray-700 rounded text-[10px]">-</kbd></p>
+            <p>Zoom Out</p>
           </TooltipContent>
         </Tooltip>
 
@@ -178,7 +167,7 @@ export function CameraControls({
           </Button>
           <div />
         </div>
-      </motion.div>
+      </div>
     </TooltipProvider>
   );
 }

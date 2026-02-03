@@ -470,11 +470,15 @@ export default function App() {
         </div>
         
         {/* Event Log Panel */}
-        <EventLogPanel
-          events={worldEvents}
-          isVisible={showEventLog}
-          onClose={toggleEventLog}
-        />
+        {showEventLog && (
+          <div className="absolute top-4 left-4 z-30">
+            <EventLogPanel
+              events={worldEvents}
+              isVisible={showEventLog}
+              onClose={toggleEventLog}
+            />
+          </div>
+        )}
         
         {/* Control Bar (bottom center) */}
         <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20">

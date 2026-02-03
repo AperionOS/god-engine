@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { 
-  Play, Pause, SkipForward, SkipBack, 
+  Play, Pause, 
   Minus, Plus, ScrollText, Maximize, Camera
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -37,12 +37,7 @@ export function ControlBar({
 }: ControlBarProps) {
   return (
     <TooltipProvider delayDuration={300}>
-      <motion.div 
-        className="flex items-center gap-1 bg-gray-900/90 backdrop-blur-xl px-2 py-1.5 rounded-xl border border-gray-700/50 shadow-2xl"
-        initial={{ y: 20, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        transition={{ duration: 0.3, delay: 0.1 }}
-      >
+      <div className="flex items-center gap-1 bg-gray-900/90 backdrop-blur-xl px-2 py-1.5 rounded-xl border border-gray-700/50 shadow-2xl">
         {/* Playback Controls */}
         <div className="flex items-center gap-0.5 pr-2 border-r border-gray-700/50">
           <Tooltip>
@@ -53,18 +48,11 @@ export function ControlBar({
                 className="h-9 w-9 rounded-lg hover:bg-white/10"
                 onClick={onPlayPause}
               >
-                <motion.div
-                  key={isPlaying ? 'pause' : 'play'}
-                  initial={{ scale: 0.5, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  transition={{ duration: 0.15 }}
-                >
-                  {isPlaying ? (
-                    <Pause className="h-5 w-5" />
-                  ) : (
-                    <Play className="h-5 w-5 ml-0.5" />
-                  )}
-                </motion.div>
+                {isPlaying ? (
+                  <Pause className="h-5 w-5" />
+                ) : (
+                  <Play className="h-5 w-5 ml-0.5" />
+                )}
               </Button>
             </TooltipTrigger>
             <TooltipContent side="top">
@@ -92,15 +80,9 @@ export function ControlBar({
             </TooltipContent>
           </Tooltip>
           
-          <motion.div 
-            className="w-12 text-center font-mono text-sm font-medium"
-            key={speed}
-            initial={{ y: -8, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ duration: 0.15 }}
-          >
+          <div className="w-12 text-center font-mono text-sm font-medium">
             {speed}x
-          </motion.div>
+          </div>
           
           <Tooltip>
             <TooltipTrigger asChild>
@@ -177,7 +159,7 @@ export function ControlBar({
             </Tooltip>
           )}
         </div>
-      </motion.div>
+      </div>
     </TooltipProvider>
   );
 }

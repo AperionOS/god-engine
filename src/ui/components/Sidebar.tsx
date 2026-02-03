@@ -116,14 +116,11 @@ export function Sidebar({
 }: SidebarProps) {
   return (
     <TooltipProvider delayDuration={300}>
-      <motion.div 
+      <div 
         className={cn(
-          "h-full bg-gray-900/95 backdrop-blur border-l border-gray-800 flex flex-col transition-all duration-300",
+          "relative h-full bg-gray-900/95 backdrop-blur border-l border-gray-800 flex flex-col transition-all duration-300",
           isCollapsed ? "w-12" : "w-80"
         )}
-        initial={{ x: 80, opacity: 0 }}
-        animate={{ x: 0, opacity: 1 }}
-        transition={{ duration: 0.3, ease: "easeOut" }}
       >
         {/* Collapse Toggle */}
         <Button
@@ -398,7 +395,7 @@ export function Sidebar({
             )}
           </div>
         )}
-      </motion.div>
+      </div>
     </TooltipProvider>
   );
 }

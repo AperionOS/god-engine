@@ -1,4 +1,3 @@
-import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { X, Skull, Baby, Heart, TrendingUp, MapPin } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -57,22 +56,16 @@ export function EventLogPanel({
 }: EventLogPanelProps) {
   const displayEvents = events.slice(-maxEvents).reverse();
   
+  if (!isVisible) return null;
+  
   return (
-    <AnimatePresence>
-      {isVisible && (
-        <motion.div
-          className="absolute left-4 bottom-20 w-80 max-h-96 bg-gray-900/95 backdrop-blur-xl rounded-xl border border-gray-700/50 shadow-2xl overflow-hidden z-30"
-          initial={{ opacity: 0, y: 20, scale: 0.95 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: 20, scale: 0.95 }}
-          transition={{ duration: 0.2, ease: "easeOut" }}
-        >
-          {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700/50 bg-gray-800/50">
-            <div className="flex items-center gap-2">
-              <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
-              <h3 className="text-sm font-semibold">Event Log</h3>
-              <Badge variant="secondary" className="text-[10px] h-5">
+    <div className="w-80 max-h-96 bg-gray-900/95 backdrop-blur-xl rounded-xl border border-gray-700/50 shadow-2xl overflow-hidden">
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700/50 bg-gray-800/50">
+        <div className="flex items-center gap-2">
+          <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+          <h3 className="text-sm font-semibold">Event Log</h3>
+          <Badge variant="secondary" className="text-[10px] h-5">
                 {events.length}
               </Badge>
             </div>
@@ -89,60 +82,51 @@ export function EventLogPanel({
           {/* Events */}
           <ScrollArea className="h-72">
             <div className="p-2 space-y-1">
-              <AnimatePresence mode="popLayout">
-                {displayEvents.length === 0 ? (
-                  <div className="flex items-center justify-center h-20 text-gray-500 text-sm">
-                    No events yet
-                  </div>
-                ) : (
-                  displayEvents.map((event, index) => {
-                    const config = eventConfig[event.type] || eventConfig.death;
-                    const Icon = config.icon;
-                    
-                    return (
-                      <motion.div
-                        key={`${event.tick}-${event.type}-${index}`}
-                        className={cn(
-                          "flex items-start gap-2.5 px-2.5 py-2 rounded-lg",
-                          config.bg,
-                          "border border-transparent hover:border-gray-700/50 transition-colors"
-                        )}
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, scale: 0.9 }}
-                        transition={{ duration: 0.15, delay: index * 0.02 }}
-                        layout
-                      >
-                        <div className={cn("mt-0.5", config.color)}>
-                          <Icon className="h-3.5 w-3.5" />
+              {displayEvents.length === 0 ? (
+                <div className="flex items-center justify-center h-20 text-gray-500 text-sm">
+                  No events yet
+                </div>
+              ) : (
+                displayEvents.map((event, index) => {
+                  const config = eventConfig[event.type] || eventConfig.death;
+                  const Icon = config.icon;
+                  
+                  return (
+                    <div
+                      key={`${event.tick}-${event.type}-${index}`}
+                      className={cn(
+                        "flex items-start gap-2.5 px-2.5 py-2 rounded-lg",
+                        config.bg,
+                        "border border-transparent hover:border-gray-700/50 transition-colors"
+                      )}
+                    >
+                      <div className={cn("mt-0.5", config.color)}>
+                        <Icon className="h-3.5 w-3.5" />
+                      </div>
+                      
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs text-gray-200 leading-snug">
+                          {formatEventMessage(event)}
+                        </p>
+                        <div className="flex items-center gap-2 mt-1 text-[10px] text-gray-500">
+                          <span>Tick {event.tick}</span>
+                          {event.location && (
+                            <>
+                              <span>•</span>
+                              <span className="flex items-center gap-0.5">
+                                <MapPin className="h-2.5 w-2.5" />
+                                {event.location.x}, {event.location.y}
+                              </span>
+                            </>
+                          )}
                         </div>
-                        
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs text-gray-200 leading-snug">
-                            {formatEventMessage(event)}
-                          </p>
-                          <div className="flex items-center gap-2 mt-1 text-[10px] text-gray-500">
-                            <span>Tick {event.tick}</span>
-                            {event.location && (
-                              <>
-                                <span>•</span>
-                                <span className="flex items-center gap-0.5">
-                                  <MapPin className="h-2.5 w-2.5" />
-                                  {event.location.x}, {event.location.y}
-                                </span>
-                              </>
-                            )}
-                          </div>
-                        </div>
-                      </motion.div>
-                    );
-                  })
-                )}
-              </AnimatePresence>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
             </div>
           </ScrollArea>
-        </motion.div>
-      )}
-    </AnimatePresence>
+        </div>
   );
 }
