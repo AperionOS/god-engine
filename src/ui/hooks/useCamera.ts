@@ -5,6 +5,7 @@ export interface CameraState {
   y: number;
   zoom: number;
   setPosition: (x: number, y: number) => void;
+  setZoom: (zoom: number) => void;
 }
 
 export function useCamera(canvasRef: React.RefObject<HTMLCanvasElement | null>): CameraState {
@@ -53,6 +54,10 @@ export function useCamera(canvasRef: React.RefObject<HTMLCanvasElement | null>):
   const setPosition = useCallback((x: number, y: number) => {
     setCamera(prev => ({ ...prev, x, y }));
   }, []);
+  
+  const setZoom = useCallback((zoom: number) => {
+    setCamera(prev => ({ ...prev, zoom: Math.min(Math.max(zoom, 0.5), 10) }));
+  }, []);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -71,5 +76,5 @@ export function useCamera(canvasRef: React.RefObject<HTMLCanvasElement | null>):
     };
   }, [canvasRef, handleWheel, handleMouseDown, handleMouseMove, handleMouseUp]);
 
-  return { ...camera, setPosition };
+  return { ...camera, setPosition, setZoom };
 }

@@ -10,18 +10,15 @@ import { useCamera } from './ui/hooks/useCamera';
 import { AgentInspector } from './ui/components/AgentInspector';
 import { Minimap } from './ui/components/Minimap';
 import { CellTooltip } from './ui/components/CellTooltip';
-import { EventLog } from './ui/components/EventLog';
 import { LocationPicker } from './ui/components/LocationPicker';
+import { ControlBar } from './ui/components/ControlBar';
+import { Sidebar } from './ui/components/Sidebar';
+import { CameraControls } from './ui/components/CameraControls';
+import { EventLogPanel, type WorldEvent } from './ui/components/EventLogPanel';
 import { Agent } from './engine/agent';
 import { usePersistence } from './api';
-import { Activity, Users, Settings, Play, Pause, Cloud, CloudOff, Sparkles, RotateCcw, ScrollText, Mountain, Globe } from 'lucide-react';
-import { ResponsiveLine } from '@nivo/line';
-import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Slider } from '@/components/ui/slider';
 import { Toaster, toast } from 'sonner';
-import { motion, AnimatePresence } from 'framer-motion';
+import { AnimatePresence } from 'framer-motion';
 import { EventType } from './engine/history';
 import { useUIStore } from './stores/uiStore';
 import { fetchTerrain, normalizeElevations, type LatLng } from './services/terrainLoader';
@@ -52,8 +49,11 @@ export default function App() {
     showEventLog, toggleEventLog,
   } = useUIStore();
   
+  // UI state
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
   const [history, setHistory] = useState<{ tick: number; population: number }[]>([]);
+  const [worldEvents, setWorldEvents] = useState<WorldEvent[]>([]);
   
   // Real terrain state
   const [showLocationPicker, setShowLocationPicker] = useState(false);
@@ -217,6 +217,49 @@ export default function App() {
     );
   }, [persistence, stats]);
 
+  // Camera controls
+  const handleZoomIn = useCallback(() => {
+    camera.setZoom(Math.min(camera.zoom * 1.25, 4));
+  }, [camera]);
+  
+  const handleZoomOut = useCallback(() => {
+    camera.setZoom(Math.max(camera.zoom / 1.25, 0.5));
+  }, [camera]);
+  
+  const handleResetCamera = useCallback(() => {
+    camera.setZoom(1);
+    camera.setPosition(0, 0);
+  }, [camera]);
+  
+  const handleCenterOnAgents = useCallback(() => {
+    if (world.agents.length === 0) return;
+    const avgX = world.agents.reduce((sum, a) => sum + a.x, 0) / world.agents.length;
+    const avgY = world.agents.reduce((sum, a) => sum + a.y, 0) / world.agents.length;
+    // Convert to canvas coordinates
+    camera.setPosition(-(avgX / world.width - 0.5) * CANVAS_SIZE, -(avgY / world.height - 0.5) * CANVAS_SIZE);
+  }, [camera]);
+  
+  const handlePan = useCallback((dx: number, dy: number) => {
+    camera.setPosition(camera.x + dx, camera.y + dy);
+  }, [camera]);
+  
+  const handleScreenshot = useCallback(() => {
+    if (!canvasRef.current) return;
+    const link = document.createElement('a');
+    link.download = `god-engine-${seed}-tick-${tick}.png`;
+    link.href = canvasRef.current.toDataURL('image/png');
+    link.click();
+    toast.success('Screenshot saved!');
+  }, [seed, tick]);
+  
+  const handleFullscreen = useCallback(() => {
+    if (document.fullscreenElement) {
+      document.exitFullscreen();
+    } else {
+      document.documentElement.requestFullscreen();
+    }
+  }, []);
+
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -242,12 +285,24 @@ export default function App() {
           e.preventDefault();
           toggleEventLog();
           break;
+        case 'KeyF':
+          e.preventDefault();
+          handleFullscreen();
+          break;
+        case 'KeyR':
+          e.preventDefault();
+          handleResetCamera();
+          break;
+        case 'KeyC':
+          e.preventDefault();
+          handleCenterOnAgents();
+          break;
       }
     };
     
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handlePlayPause, incrementSpeed, decrementSpeed, toggleEventLog]);
+  }, [handlePlayPause, incrementSpeed, decrementSpeed, toggleEventLog, handleFullscreen, handleResetCamera, handleCenterOnAgents]);
 
   // Setup Canvas
   useEffect(() => {
@@ -319,6 +374,16 @@ export default function App() {
               return next;
             });
             
+            // Update worldEvents for EventLogPanel (convert engine events to UI format)
+            const recentEvents = world.history.events.slice(-100);
+            setWorldEvents(recentEvents.map(e => ({
+              tick: e.tick,
+              type: e.type === EventType.AGENT_DEATH ? 'death' : 
+                    e.type === EventType.AGENT_SPAWN ? 'spawn' : 'birth',
+              description: e.details,
+              location: e.x !== undefined && e.y !== undefined ? { x: e.x, y: e.y } : undefined,
+            })));
+            
             // Sync events to cloud periodically
             if (persistence.runId) {
               const newEvents = world.history.events.slice(lastSyncedEventCount.current);
@@ -362,14 +427,14 @@ export default function App() {
   }, [ctx, isPlaying, speed, layers, camera, persistence]);
 
   return (
-    <div className="flex h-screen w-screen bg-gray-900 text-white overflow-hidden">
+    <div className="flex h-screen w-screen bg-gray-950 text-white overflow-hidden">
       {/* Main Viewport */}
-      <div className="flex-1 relative flex items-center justify-center bg-gray-950">
+      <div className="flex-1 relative flex items-center justify-center">
         <canvas 
           id="game-canvas" 
           ref={canvasRef}
           onClick={handleCanvasClick}
-          className="shadow-2xl border border-gray-800 rounded-lg cursor-crosshair"
+          className="shadow-2xl border border-gray-800 rounded-xl cursor-crosshair"
         />
         
         {/* Cell Tooltip */}
@@ -382,8 +447,19 @@ export default function App() {
           />
         )}
         
+        {/* Camera Controls (left) */}
+        <CameraControls
+          zoom={camera.zoom}
+          onZoomIn={handleZoomIn}
+          onZoomOut={handleZoomOut}
+          onReset={handleResetCamera}
+          onCenter={handleCenterOnAgents}
+          onPan={handlePan}
+          className="absolute left-4 top-1/2 -translate-y-1/2"
+        />
+        
         {/* Minimap (bottom-left) */}
-        <div className="absolute bottom-6 left-6">
+        <div className="absolute bottom-20 left-4">
           <Minimap
             world={world}
             camera={camera}
@@ -393,385 +469,57 @@ export default function App() {
           />
         </div>
         
-        {/* Event Log Panel (top-left, toggleable) */}
-        <AnimatePresence>
-          {showEventLog && (
-            <motion.div 
-              className="absolute top-6 left-6 z-30 w-72 h-80 bg-gray-900/95 backdrop-blur border border-gray-700 rounded-lg p-3 shadow-xl"
-              initial={{ opacity: 0, x: -20, scale: 0.95 }}
-              animate={{ opacity: 1, x: 0, scale: 1 }}
-              exit={{ opacity: 0, x: -20, scale: 0.95 }}
-              transition={{ duration: 0.2 }}
-            >
-              <EventLog events={world.history.events} currentTick={tick} maxEvents={100} />
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {/* Event Log Panel */}
+        <EventLogPanel
+          events={worldEvents}
+          isVisible={showEventLog}
+          onClose={toggleEventLog}
+        />
         
-        {/* Overlay Controls */}
-        <motion.div 
-          className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 flex items-center gap-4 bg-gray-900/80 backdrop-blur px-6 py-3 rounded-full border border-gray-700 shadow-xl"
-          initial={{ y: 20, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ duration: 0.3, delay: 0.1 }}
-        >
-          <motion.button 
-            onClick={handlePlayPause}
-            className="p-2 hover:bg-white/10 rounded-full transition-colors"
-            title="Play/Pause (Space)"
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.9 }}
-          >
-            <AnimatePresence mode="wait">
-              {isPlaying ? (
-                <motion.div key="pause" initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }}>
-                  <Pause size={24} />
-                </motion.div>
-              ) : (
-                <motion.div key="play" initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }}>
-                  <Play size={24} />
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </motion.button>
-          
-          <div className="h-6 w-px bg-gray-700" />
-          
-          {/* Speed control with current speed display */}
-          <div className="flex items-center gap-2">
-            <motion.button 
-              onClick={decrementSpeed}
-              className="px-2 py-1 rounded text-sm font-medium hover:bg-white/10 text-gray-400"
-              title="Slower (-)"
-              whileHover={{ scale: 1.1 }}
-              whileTap={{ scale: 0.9 }}
-            >
-              −
-            </motion.button>
-            <motion.span 
-              key={speed}
-              className="w-8 text-center text-sm font-mono"
-              initial={{ y: -10, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-            >
-              {speed}x
-            </motion.span>
-            <motion.button 
-              onClick={incrementSpeed}
-              className="px-2 py-1 rounded text-sm font-medium hover:bg-white/10 text-gray-400"
-              title="Faster (+)"
-              whileHover={{ scale: 1.1 }}
-              whileTap={{ scale: 0.9 }}
-            >
-              +
-            </motion.button>
-          </div>
-          
-          <div className="h-6 w-px bg-gray-700" />
-          
-          {/* Toggle event log */}
-          <motion.button
-            onClick={toggleEventLog}
-            className={cn(
-              "p-2 rounded-full transition-colors",
-              showEventLog ? "bg-blue-600 text-white" : "hover:bg-white/10 text-gray-400"
-            )}
-            title="Event Log (L)"
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.9 }}
-          >
-            <ScrollText size={18} />
-          </motion.button>
-          
-          {/* Cloud sync indicator */}
-          <div className="flex items-center gap-2 text-sm">
-            {persistence.runId ? (
-              <motion.div
-                animate={{ scale: persistence.isSaving ? [1, 1.2, 1] : 1 }}
-                transition={{ repeat: persistence.isSaving ? Infinity : 0, duration: 1 }}
-              >
-                <Cloud size={18} className={persistence.isSaving ? "text-blue-400" : "text-green-400"} />
-              </motion.div>
-            ) : (
-              <CloudOff size={18} className="text-gray-500" />
-            )}
-            {persistence.eventsSaved > 0 && (
-              <span className="text-gray-400 text-xs">{persistence.eventsSaved}</span>
-            )}
-          </div>
-        </motion.div>
+        {/* Control Bar (bottom center) */}
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20">
+          <ControlBar
+            isPlaying={isPlaying}
+            speed={speed}
+            showEventLog={showEventLog}
+            onPlayPause={handlePlayPause}
+            onSpeedUp={incrementSpeed}
+            onSpeedDown={decrementSpeed}
+            onToggleEventLog={toggleEventLog}
+            onScreenshot={handleScreenshot}
+            onFullscreen={handleFullscreen}
+          />
+        </div>
         
         {/* Keyboard shortcuts hint */}
-        <div className="absolute top-6 right-6 text-xs text-gray-500 bg-gray-900/60 px-2 py-1 rounded pointer-events-none select-none">
-          Space: Play · +/-: Speed · L: Log
+        <div className="absolute top-4 right-4 text-xs text-gray-500 bg-gray-900/60 backdrop-blur px-3 py-1.5 rounded-lg pointer-events-none select-none border border-gray-800/50">
+          Space: Play · +/-: Speed · L: Log · F: Fullscreen
         </div>
       </div>
 
-      {/* Sidebar Inspector */}
-      <motion.div 
-        className="w-80 border-l border-gray-800 bg-gray-900 p-4 flex flex-col gap-6"
-        initial={{ x: 80, opacity: 0 }}
-        animate={{ x: 0, opacity: 1 }}
-        transition={{ duration: 0.3, ease: "easeOut" }}
-      >
-        {/* Header */}
-        <div className="flex items-center gap-3 pb-4 border-b border-gray-800">
-          <motion.div 
-            className="h-10 w-10 bg-blue-600 rounded-lg flex items-center justify-center"
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-          >
-            <Activity className="text-white" />
-          </motion.div>
-          <div className="flex-1">
-            <h1 className="font-bold text-lg">God Engine</h1>
-            <p className="text-xs text-gray-400">
-              {terrainLocation ? (
-                <span className="flex items-center gap-1">
-                  <Globe size={12} className="text-green-400" />
-                  {terrainLocation}
-                </span>
-              ) : (
-                'Simulation Cockpit'
-              )}
-            </p>
-          </div>
-        </div>
-
-        {/* Terrain Source */}
-        <div className="space-y-2">
-          <h2 className="text-xs font-bold text-gray-500 uppercase tracking-wider">Terrain Source</h2>
-          
-          {/* Toggle between procedural and real terrain */}
-          <div className="grid grid-cols-2 gap-2">
-            <Button
-              variant={!terrainLocation ? "default" : "outline"}
-              size="sm"
-              onClick={() => {
-                if (terrainLocation) {
-                  handleRegenerate();
-                }
-              }}
-              className={cn(
-                "text-xs",
-                !terrainLocation 
-                  ? "bg-blue-600 hover:bg-blue-500" 
-                  : "bg-gray-800 border-gray-700 hover:bg-gray-700"
-              )}
-            >
-              <RotateCcw size={14} className="mr-1" />
-              Procedural
-            </Button>
-            <Button
-              variant={terrainLocation ? "default" : "outline"}
-              size="sm"
-              onClick={() => setShowLocationPicker(true)}
-              className={cn(
-                "text-xs",
-                terrainLocation 
-                  ? "bg-green-600 hover:bg-green-500" 
-                  : "bg-gray-800 border-gray-700 hover:bg-gray-700"
-              )}
-            >
-              <Mountain size={14} className="mr-1" />
-              Real Terrain
-            </Button>
-          </div>
-          
-          {/* Seed input (only for procedural) */}
-          {!terrainLocation && (
-            <div className="flex gap-2">
-              <Input
-                type="number"
-                value={seed}
-                onChange={(e) => setSeed(parseInt(e.target.value) || 0)}
-                className="flex-1 bg-gray-800 border-gray-700 font-mono text-sm"
-                placeholder="Seed"
-              />
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={handleRegenerate}
-                title="Regenerate World"
-                className="bg-gray-800 border-gray-700 hover:bg-gray-700"
-              >
-                <RotateCcw size={16} />
-              </Button>
-            </div>
-          )}
-          
-          {/* Terrain info (only for real terrain) */}
-          {terrainLocation && world.heightMap.realTerrainMetadata && (
-            <div className="text-xs text-gray-400 bg-gray-800 rounded p-2 border border-gray-700">
-              <div className="flex justify-between">
-                <span>Min elevation:</span>
-                <span className="font-mono">{world.heightMap.realTerrainMetadata.minElevation.toFixed(0)}m</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Max elevation:</span>
-                <span className="font-mono">{world.heightMap.realTerrainMetadata.maxElevation.toFixed(0)}m</span>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Inspector */}
-        <AnimatePresence mode="wait">
-          {selectedAgent ? (
-            <motion.div
-              key="inspector"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.2 }}
-            >
-              <AgentInspector agent={selectedAgent} />
-            </motion.div>
-          ) : (
-            /* Vitals */
-            <motion.div 
-              key="vitals"
-              className="space-y-4"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.2 }}
-            >
-            <h2 className="text-xs font-bold text-gray-500 uppercase tracking-wider">World Vitals</h2>
-            
-            <div className="bg-gray-800 rounded-lg p-3 border border-gray-700">
-              <div className="flex items-center gap-2 mb-2 text-gray-400">
-                <Users size={16} />
-                <span className="text-sm">Population</span>
-              </div>
-              <div className="text-2xl font-mono font-bold text-white">
-                {world.agents.length}
-              </div>
-            </div>
-
-            <div className="bg-gray-800 rounded-lg p-3 border border-gray-700">
-              <div className="flex items-center gap-2 mb-2 text-gray-400">
-                <Activity size={16} />
-                <span className="text-sm">Tick</span>
-              </div>
-              <div className="text-2xl font-mono font-bold text-blue-400">
-                {tick}
-              </div>
-            </div>
-
-            {/* Population Graph */}
-            <div className="h-32 bg-gray-800 rounded-lg p-2 border border-gray-700">
-              {history.length >= 2 ? (
-                <ResponsiveLine
-                  data={[{
-                    id: 'population',
-                    data: history.map(h => ({ x: h.tick, y: h.population }))
-                  }]}
-                  colors={['#3b82f6']}
-                  enablePoints={false}
-                  enableGridX={false}
-                  enableGridY={false}
-                  axisBottom={null}
-                  axisLeft={null}
-                  axisTop={null}
-                  axisRight={null}
-                  enableArea={true}
-                  areaOpacity={0.15}
-                  curve="monotoneX"
-                  animate={false}
-                  isInteractive={true}
-                  useMesh={true}
-                  margin={{ top: 5, right: 5, bottom: 5, left: 5 }}
-                  theme={{
-                    tooltip: {
-                      container: {
-                        background: '#1f2937',
-                        color: '#fff',
-                        fontSize: 12,
-                        borderRadius: 4,
-                        boxShadow: '0 4px 6px rgba(0, 0, 0, 0.3)',
-                      },
-                    },
-                  }}
-                />
-              ) : (
-                <div className="h-full flex items-center justify-center text-gray-500 text-xs">
-                  Waiting for data...
-                </div>
-              )}
-            </div>
-            
-            {/* Stats Summary */}
-            <div className="grid grid-cols-2 gap-2 text-xs">
-              <div className="bg-gray-800 rounded p-2 border border-gray-700">
-                <span className="text-gray-400">Peak</span>
-                <div className="font-mono font-bold text-green-400">{stats.peakPopulation}</div>
-              </div>
-              <div className="bg-gray-800 rounded p-2 border border-gray-700">
-                <span className="text-gray-400">Deaths</span>
-                <div className="font-mono font-bold text-red-400">{stats.totalDeaths}</div>
-              </div>
-            </div>
-            
-            {/* Generate Lore Button */}
-            {persistence.runId && (
-              <Button
-                onClick={handleGenerateLore}
-                disabled={persistence.isSaving}
-                className="w-full bg-purple-600 hover:bg-purple-500 disabled:bg-gray-700"
-              >
-                <Sparkles size={16} className="mr-2" />
-                {persistence.isSaving ? 'Generating...' : 'Generate Lore'}
-              </Button>
-            )}
-            
-            {/* Lore Display */}
-            <AnimatePresence>
-              {persistence.lore && (
-                <motion.div 
-                  className="bg-gray-800 rounded-lg p-3 border border-purple-900/50 text-sm text-gray-300 italic leading-relaxed max-h-48 overflow-y-auto"
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: "auto" }}
-                  exit={{ opacity: 0, height: 0 }}
-                  transition={{ duration: 0.3 }}
-                >
-                  {persistence.lore}
-                </motion.div>
-              )}
-            </AnimatePresence>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Layers */}
-        <div className="space-y-4">
-          <h2 className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-2">
-            <Settings size={14} /> Layers
-          </h2>
-          <div className="space-y-2">
-            {Object.entries(layers).map(([key, active]) => (
-              <motion.button
-                key={key}
-                onClick={() => toggleLayer(key as keyof typeof layers)}
-                className={cn(
-                  "w-full flex items-center justify-between px-3 py-2 rounded text-sm transition-colors border",
-                  active 
-                    ? "bg-blue-600/10 border-blue-600/30 text-blue-400" 
-                    : "bg-gray-800 border-gray-700 text-gray-400 hover:bg-gray-700"
-                )}
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-              >
-                <span className="capitalize">{key}</span>
-                <motion.div 
-                  className={cn("w-2 h-2 rounded-full", active ? "bg-blue-400" : "bg-gray-600")}
-                  animate={{ scale: active ? 1 : 0.8 }}
-                />
-              </motion.button>
-            ))}
-          </div>
-        </div>
-      </motion.div>
+      {/* Sidebar */}
+      <Sidebar
+        tick={tick}
+        population={world.agents.length}
+        stats={stats}
+        history={history}
+        terrainLocation={terrainLocation}
+        seed={seed}
+        onSeedChange={setSeed}
+        onRegenerate={handleRegenerate}
+        onLoadRealTerrain={() => setShowLocationPicker(true)}
+        layers={layers}
+        onToggleLayer={toggleLayer}
+        cloudConnected={!!persistence.runId}
+        cloudSaving={persistence.isSaving}
+        eventsSaved={persistence.eventsSaved}
+        onGenerateLore={persistence.runId ? handleGenerateLore : undefined}
+        lore={persistence.lore || undefined}
+        isGeneratingLore={persistence.isSaving}
+        isCollapsed={sidebarCollapsed}
+        onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+      />
+      
       <Toaster 
         theme="dark" 
         position="bottom-right"
