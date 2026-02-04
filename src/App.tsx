@@ -28,6 +28,10 @@ import { fetchTerrain, normalizeElevations, type LatLng } from './services/terra
 import { saveMap, loadMap } from './services/mapPersistence';
 import { deserializeWorld } from './engine/serialize';
 
+// Build info from Cloudflare Pages environment
+const BUILD_SHA = import.meta.env.VITE_BUILD_SHA ?? 'dev';
+const DEPLOY_URL = import.meta.env.VITE_DEPLOY_URL ?? '';
+
 // Initialize world singleton
 const WORLD_SIZE = 256;
 const DEFAULT_SEED = 12345;
@@ -658,6 +662,11 @@ export default function App() {
         {/* Keyboard shortcuts hint (top-right, but not over sidebar) */}
         <div className="absolute top-4 right-[340px] text-xs text-gray-500 bg-gray-900/60 backdrop-blur px-3 py-1.5 rounded-lg border border-gray-800/50">
           Space: Play · +/-: Speed · L: Log · F: Fullscreen
+        </div>
+        
+        {/* Build stamp (bottom-left corner, subtle) */}
+        <div className="absolute bottom-4 right-4 text-[10px] text-gray-600 font-mono pointer-events-auto" title={DEPLOY_URL || 'Local development'}>
+          {BUILD_SHA.slice(0, 7)}
         </div>
       </div>
 
