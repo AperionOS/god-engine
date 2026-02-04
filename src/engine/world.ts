@@ -7,6 +7,7 @@ import { Agent, AgentConfig, AgentState } from './agent';
 import { SeededRNG } from './rng';
 import { HistoryLog, EventType } from './history';
 import { BiomeType } from './enums';
+import { WORLD_CONFIG } from './config';
 import {
   checksumHeightMap,
   checksumFlowMap,
@@ -156,10 +157,13 @@ export class World {
         }
 
         if (agent.isDead()) {
-          // Return nutrients to soil only in valid biomes
+          // Return nutrients to soil, clamped to biome max (prevents desert > forest anomaly)
           if (biomeHere !== BiomeType.OCEAN && biomeHere !== BiomeType.SNOW) {
-            const currentVeg = this.vegetationMap.get(ax, ay);
-            this.vegetationMap.set(ax, ay, currentVeg + 0.35);
+            const maxVeg = WORLD_CONFIG.VEGETATION.MAX_DENSITY[biomeHere];
+            if (maxVeg > 0) {
+              const currentVeg = this.vegetationMap.get(ax, ay);
+              this.vegetationMap.set(ax, ay, Math.min(maxVeg, currentVeg + 0.5));
+            }
           }
           
           this.history.log({

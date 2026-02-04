@@ -129,26 +129,43 @@ export class Agent {
 
   private handleForaging(vegetation: VegetationMap, rng: SeededRNG): void {
     const { width, height } = vegetation;
-    let bestX = this.x;
-    let bestY = this.y;
-    let bestVeg = 0;
+
+    const cx = Math.floor(this.x);
+    const cy = Math.floor(this.y);
+
+    // If current tile is good enough, eat now (prevents "chasing slightly better food" loops)
+    const hereVeg = vegetation.get(cx, cy);
+    if (hereVeg >= 0.12) {
+      this.state = AgentState.EATING;
+      return;
+    }
+
+    let bestX = cx;
+    let bestY = cy;
+    let bestScore = 0;
 
     for (let dy = -this.senseRadius; dy <= this.senseRadius; dy++) {
       for (let dx = -this.senseRadius; dx <= this.senseRadius; dx++) {
-        const nx = Math.floor(this.x + dx);
-        const ny = Math.floor(this.y + dy);
-        if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
-          const veg = vegetation.get(nx, ny);
-          if (veg > bestVeg) {
-            bestVeg = veg;
-            bestX = nx;
-            bestY = ny;
-          }
+        const nx = cx + dx;
+        const ny = cy + dy;
+
+        if (nx < 0 || nx >= width || ny < 0 || ny >= height) continue;
+
+        const veg = vegetation.get(nx, ny);
+        if (veg <= 0.02) continue;
+
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        const score = veg / (1 + dist); // prefer closer food
+
+        if (score > bestScore) {
+          bestScore = score;
+          bestX = nx;
+          bestY = ny;
         }
       }
     }
 
-    if (bestVeg > 0.1) {
+    if (bestScore > 0) {
       const dx = bestX - this.x;
       const dy = bestY - this.y;
       const dist = Math.sqrt(dx * dx + dy * dy);
@@ -159,6 +176,7 @@ export class Agent {
         this.move((dx / dist) * this.speed, (dy / dist) * this.speed);
       }
     } else {
+      // No food nearby, roam
       const angle = rng.range(0, Math.PI * 2);
       this.move(Math.cos(angle) * this.speed, Math.sin(angle) * this.speed);
     }

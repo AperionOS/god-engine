@@ -422,6 +422,13 @@ export default function App() {
         while (accumulator >= fixedDelta) {
           world.tick();
           
+          // Auto-pause on extinction (UX: stop the clock when the world ends)
+          if (world.agents.length === 0) {
+            setPlaying(false);
+            toast.error(`Extinction at tick ${world.tickCount}`);
+            break;
+          }
+          
           // Process only new events (incremental)
           const events = world.history.events;
           for (let i = lastEventIndex; i < events.length; i++) {

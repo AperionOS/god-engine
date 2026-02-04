@@ -57,14 +57,14 @@ export const WORLD_CONFIG = {
     SPEED: 1,
 
     REPRODUCTION: {
-      HUNGER_THRESHOLD: 10, // Must have hunger below this to reproduce
-      ENERGY_REQUIRED: 50,  // "Satiety" points required to produce offspring
+      HUNGER_THRESHOLD: 15, // Must have hunger below this to reproduce (was 10)
+      ENERGY_REQUIRED: 35,  // "Satiety" points required to produce offspring (was 50)
 
       // Scarcity v1: reproduction only in locally abundant cells
-      MIN_LOCAL_VEG: 0.25,
+      MIN_LOCAL_VEG: 0.15,  // (was 0.25)
 
       // Scarcity v1: prevent rapid repeat births from the same agent
-      COOLDOWN_TICKS: 300,
+      COOLDOWN_TICKS: 240,  // (was 300)
 
       MUTATION_RATE: 0.1,   // Chance of a trait mutating
       MUTATION_AMOUNT: 0.2, // Max +/- change in trait value
