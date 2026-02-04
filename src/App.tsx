@@ -6,6 +6,7 @@ import { renderTerrain } from './ui/renderers/terrain';
 import { renderRivers } from './ui/renderers/rivers';
 import { renderVegetation } from './ui/renderers/vegetation';
 import { renderAgents } from './ui/renderers/agent';
+import { renderDeathEffects, DeathEffect } from './ui/renderers/effects';
 import { useCamera } from './ui/hooks/useCamera';
 import { AgentInspector } from './ui/components/AgentInspector';
 import { Minimap } from './ui/components/Minimap';
@@ -80,6 +81,12 @@ export default function App() {
   const persistence = usePersistence({ seed, enabled: true });
   const lastSyncedEventCount = useRef(0);
   
+  // Death effects (UI-only, render layer)
+  const [deathEffects, setDeathEffects] = useState<DeathEffect[]>([]);
+  
+  // Extinction handling - fire once per run
+  const extinctionHandledRef = useRef(false);
+  
   // Camera navigation for minimap
   const handleMinimapNavigate = useCallback((x: number, y: number) => {
     camera.setPosition(x, y);
@@ -110,8 +117,10 @@ export default function App() {
       setHistory([]);
       setStats({ peakPopulation: 0, totalBirths: 0, totalDeaths: 0, extinctionTick: null });
       setSelectedAgent(null);
+      setDeathEffects([]);
       persistence.reset();
       lastSyncedEventCount.current = 0;
+      extinctionHandledRef.current = false;
       
       // Load terrain into world
       world.loadRealTerrain(heightMap);
@@ -241,9 +250,11 @@ export default function App() {
     setHistory([]);
     setStats({ peakPopulation: 0, totalBirths: 0, totalDeaths: 0, extinctionTick: null });
     setSelectedAgent(null);
+    setDeathEffects([]);
     setTerrainLocation(null); // Clear real terrain
     persistence.reset();
     lastSyncedEventCount.current = 0;
+    extinctionHandledRef.current = false;
     addToSeedHistory(seed);
     
     // Start a new cloud run
@@ -423,19 +434,50 @@ export default function App() {
           world.tick();
           
           // Auto-pause on extinction (UX: stop the clock when the world ends)
-          if (world.agents.length === 0) {
+          if (world.agents.length === 0 && !extinctionHandledRef.current) {
+            extinctionHandledRef.current = true;
             setPlaying(false);
             toast.error(`Extinction at tick ${world.tickCount}`);
+            
+            // Finalize cloud run (fire-and-forget, don't await in tight loop)
+            if (persistence.runId) {
+              persistence.endRun({
+                peak_population: stats.peakPopulation,
+                total_births: birthCount,
+                total_deaths: deathCount,
+                extinction_tick: world.tickCount,
+                final_tick: world.tickCount,
+              });
+            }
             break;
           }
           
           // Process only new events (incremental)
           const events = world.history.events;
+          const newDeathEffects: DeathEffect[] = [];
           for (let i = lastEventIndex; i < events.length; i++) {
-            if (events[i].type === EventType.AGENT_SPAWN) birthCount++;
-            else if (events[i].type === EventType.AGENT_DEATH) deathCount++;
+            const event = events[i];
+            if (event.type === EventType.AGENT_SPAWN) birthCount++;
+            else if (event.type === EventType.AGENT_DEATH) {
+              deathCount++;
+              // Create death effect for rendering (UI-only)
+              if (event.x !== undefined && event.y !== undefined) {
+                newDeathEffects.push({
+                  id: `${event.tick}-${event.x}-${event.y}`,
+                  x: event.x,
+                  y: event.y,
+                  startMs: performance.now(),
+                  tick: event.tick,
+                });
+              }
+            }
           }
           lastEventIndex = events.length;
+          
+          // Batch-add new death effects
+          if (newDeathEffects.length > 0) {
+            setDeathEffects(prev => [...prev, ...newDeathEffects]);
+          }
           
           // Update tick less frequently to reduce React overhead
           if (world.tickCount % 3 === 0) {
@@ -501,6 +543,7 @@ export default function App() {
 
       if (ctx) {
         const { ctx: c, width, height } = ctx;
+        const now = performance.now();
         
         // Read LIVE camera values from ref (avoids stale closure bug)
         const cam = camera.ref.current;
@@ -519,9 +562,17 @@ export default function App() {
         if (layers.terrain) renderTerrain(world, ctx);
         if (layers.rivers) renderRivers(world, ctx);
         if (layers.vegetation) renderVegetation(world, ctx);
+        
+        // Render death effects (after terrain, before/with agents)
+        renderDeathEffects(deathEffects, world, ctx, now);
+        
         if (layers.agents) renderAgents(world, ctx);
 
         c.restore();
+        
+        // Expire old death effects (900ms duration)
+        const EFFECT_DURATION_MS = 900;
+        setDeathEffects(prev => prev.filter(e => now - e.startMs < EFFECT_DURATION_MS));
       }
 
       animationFrameId = requestAnimationFrame(loop);
@@ -529,7 +580,7 @@ export default function App() {
 
     animationFrameId = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(animationFrameId);
-  }, [ctx, isPlaying, speed, layers, camera.ref, persistence]);
+  }, [ctx, isPlaying, speed, layers, camera.ref, persistence, deathEffects, stats]);
 
   return (
     <div className="fixed inset-0 overflow-hidden bg-gray-950 text-white">

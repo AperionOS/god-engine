@@ -102,7 +102,8 @@ export function updateVegetation(
       const regrowth = base * moistureFactor * deficit * stride;
 
       if (regrowth > 0 && current < maxVeg) {
-        vegetation.set(x, y, current + regrowth);
+        // Clamp to biome max (prevents exceeding MAX_DENSITY)
+        vegetation.set(x, y, Math.min(maxVeg, current + regrowth));
       }
     }
   }
